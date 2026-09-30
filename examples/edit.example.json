@@ -1,0 +1,43 @@
+{
+  "operations": [
+    {
+      "op": "upsert",
+      "key_field": "fake_item_code",
+      "fields": {
+        "fake_item_code": "DEMO-001",
+        "fake_title": "example row, not a real requirement",
+        "fake_count": 2,
+        "fake_done": false
+      }
+    },
+    {
+      "op": "create",
+      "records": [
+        {
+          "fields": {
+            "fake_title": "batch example A"
+          }
+        },
+        {
+          "fields": {
+            "fake_title": "batch example B"
+          }
+        }
+      ]
+    },
+    {
+      "op": "update",
+      "record_id": "recEXAMPLE0001",
+      "fields": {
+        "fake_title": "renamed example"
+      }
+    },
+    {
+      "op": "delete",
+      "record_ids": [
+        "recEXAMPLE0002",
+        "recEXAMPLE0003"
+      ]
+    }
+  ]
+}
