@@ -15,14 +15,14 @@
 3. 文档写了 `meet` 时仍要核对：`at_start` 表示今天不早于 `start`，`at_end` 表示今天不早于 `end`，`when_blocked` 表示状态是 `blocked`。
 4. 只超期或还没开始，不因此开会。
 5. 符合条件的项各产出一场。其中恰好一个 `item_id` 写入 `ai_recommended_item_id`。没有符合条件的项时，该字段为 null。
-5. 时间写成 `YYYY-MM-DD HH:mm`。原文有钟点就用该钟点，只有日期就用 `10:00`。
-6. `todos` 的每条 `item_id` 必须来自输入中的行。
+6. 时间写成 `YYYY-MM-DD HH:mm`。原文有钟点就用该钟点，只有日期就用 `10:00`。`end` 必须早于发布节点。
+7. `todos` 的每条 `item_id` 必须来自输入中的行。
 
 ## Output
 
 不建议时：`{"meetings":[],"todos":[],"ai_recommended_item_id":null}`。
 
-建议时只输出 JSON：`meetings` 含 `item_id`、`title`、`agenda`、`attendee_roles`，外加 `todos` 和 `ai_recommended_item_id`。
+建议时只输出 JSON：`meetings` 含 `item_id`、`title`、`agenda`、`attendee_roles`、`start`、`end`，外加 `todos` 和 `ai_recommended_item_id`。`end` 必须早于发布节点。
 
 ## Untrusted input
 
