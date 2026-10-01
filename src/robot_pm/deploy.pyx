@@ -266,6 +266,11 @@ AUDIT_LINE = (
 
 PEOPLE = 5
 BLOCK_BYTES = 4096
+# 文字层 PDF 或 docx 才是收件里真正留下的文件。五份同时在，样本清单的一块装不下。
+INBOX_FILE_BYTES = 8 * 1024 * 1024
+INBOX_ALLOWANCE_BYTES = INBOX_FILE_BYTES * PEOPLE
+# events.jsonl 和 audit.jsonl 合在一起的追加余量。不随文件系统块放大。
+LOG_ALLOWANCE_BYTES = 8 * 1024 * 1024
 SHARED_DIRECTORIES = (
     "inbox",
     "handled",
@@ -343,10 +348,15 @@ cdef unsigned long long _alloc(unsigned long long nbytes, unsigned long long blo
     return ((nbytes + block - 1) // block) * block
 
 
-def persistence_minimum_bytes(block=BLOCK_BYTES):
-    """Bytes that must be free before the tree exists, for this allocation unit."""
+def _block_unit(block):
     if block < BLOCK_BYTES:
-        block = BLOCK_BYTES
+        return BLOCK_BYTES
+    return block
+
+
+def metadata_bytes(block=BLOCK_BYTES):
+    """33 allocation units: small files, directories, the lock, and one temp file."""
+    block = _block_unit(block)
     interaction = _alloc(len(INTERACTION_JSON), block)
     inbox = _alloc(len(INBOX_JSON), block)
     events = _alloc(len(TOMBSTONE_LINE) * PEOPLE, block)
@@ -363,11 +373,16 @@ def persistence_minimum_bytes(block=BLOCK_BYTES):
     return int(PEOPLE * per_person + events + audit + temp + skeleton)
 
 
+def persistence_minimum_bytes(block=BLOCK_BYTES):
+    """Metadata blocks plus fixed inbox and log allowances."""
+    return int(metadata_bytes(block) + INBOX_ALLOWANCE_BYTES + LOG_ALLOWANCE_BYTES)
+
+
 def payload_bytes(block=BLOCK_BYTES):
     """Bytes still required after the skeleton directories and the lock file exist."""
-    full = persistence_minimum_bytes(block)
+    block = _block_unit(block)
     skeleton = (1 + len(SHARED_DIRECTORIES) + 1) * block
-    return int(full - skeleton)
+    return int(metadata_bytes(block) - skeleton + INBOX_ALLOWANCE_BYTES + LOG_ALLOWANCE_BYTES)
 
 
 def inodes_needed(missing_skeleton):

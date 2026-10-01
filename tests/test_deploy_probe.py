@@ -11,7 +11,10 @@ import pytest
 
 from robot_pm.deploy import (
     BLOCK_BYTES,
+    INBOX_ALLOWANCE_BYTES,
+    INBOX_FILE_BYTES,
     INODES_NEEDED,
+    LOG_ALLOWANCE_BYTES,
     MINIMUM_BYTES,
     PAYLOAD_BYTES,
     REQUIRED_ENV,
@@ -22,6 +25,7 @@ from robot_pm.deploy import (
     compiler_is_new_enough,
     inbox_bytes,
     interaction_bytes,
+    metadata_bytes,
     missing_env,
     parse_tool_version,
     persistence_minimum_bytes,
@@ -51,17 +55,24 @@ def probe_env(**overrides):
     return env
 
 
-def test_minimum_bytes_match_one_interaction_inbox_and_tombstones():
+def test_minimum_bytes_cover_inbox_files_and_logs():
     assert interaction_bytes() == 186
     assert inbox_bytes() == 301
     assert tombstone_line_bytes() == 165
     assert audit_line_bytes() == 204
-    assert persistence_minimum_bytes(BLOCK_BYTES) == 135168
-    assert MINIMUM_BYTES == 135168
-    assert PAYLOAD_BYTES == 135168 - 10 * BLOCK_BYTES
+    assert metadata_bytes(BLOCK_BYTES) == 135168
+    assert metadata_bytes(BLOCK_BYTES) == 33 * BLOCK_BYTES
+    assert INBOX_FILE_BYTES == 8388608
+    assert INBOX_ALLOWANCE_BYTES == 8388608 * 5
+    assert INBOX_ALLOWANCE_BYTES == 41943040
+    assert LOG_ALLOWANCE_BYTES == 8388608
+    assert persistence_minimum_bytes(BLOCK_BYTES) == 135168 + 41943040 + 8388608
+    assert MINIMUM_BYTES == 50466816
+    assert PAYLOAD_BYTES == 50466816 - 10 * BLOCK_BYTES
     assert INODES_NEEDED == 33
-    assert persistence_minimum_bytes(8192) == 135168 * 2
-    assert persistence_minimum_bytes(1024) == 135168
+    assert persistence_minimum_bytes(8192) == 33 * 8192 + 41943040 + 8388608
+    assert metadata_bytes(8192) == 33 * 8192
+    assert persistence_minimum_bytes(1024) == 50466816
 
 
 def test_quota_block_is_1024_bytes_and_zero_limit_is_not_a_cap():
