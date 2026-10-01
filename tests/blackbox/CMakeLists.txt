@@ -11,7 +11,8 @@ add_executable(robot_pm_blackbox
     cases_status_reserve.cpp
     cases_memory.cpp
     cases_logic.cpp
-    cases_projection_inbox.cpp)
+    cases_projection_inbox.cpp
+    cases_adversarial.cpp)
 
 target_link_libraries(robot_pm_blackbox PRIVATE robot_pm_core doctest::doctest)
 robot_pm_set_warnings(robot_pm_blackbox)
