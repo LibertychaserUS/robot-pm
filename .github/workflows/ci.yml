@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GCC 14
+        run: sudo apt-get update && sudo apt-get install -y g++-14
+
+      - name: Configure Debug with ASan and UBSan
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++-14
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: CTest regression
+        run: ctest --test-dir build -L regression --output-on-failure
+
+      - name: Pytest
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+          .venv/bin/pytest
