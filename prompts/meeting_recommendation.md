@@ -10,10 +10,11 @@
 
 ## Procedure
 
-1. 用输入里的行核对条件。文档写了 `meet` 时：`at_start` 表示今天不早于 `start`，`at_end` 表示今天不早于 `end`，`when_blocked` 表示状态是 `blocked`。
-2. 没写 `meet` 时，只有 `kind` 为 `milestone`、今天不早于 `start`、且状态不是 `done` 才符合。
-3. 只超期或还没开始的项不因此开会。
-4. 符合条件的项各产出一场。其中恰好一个 `item_id` 写入 `ai_recommended_item_id`。没有符合条件的项时，该字段为 null。
+1. 先看每行的 `node`。`deadline` 不因为是大节点就开会。`flexible` 和没填 `node` 的行不强制开会。
+2. `release` 且决定仍是 `未决`：必须建议一场会，结束时间早于该节点。已经来不及开在节点之前，就不要把会排到节点之后。
+3. 文档写了 `meet` 时仍要核对：`at_start` 表示今天不早于 `start`，`at_end` 表示今天不早于 `end`，`when_blocked` 表示状态是 `blocked`。
+4. 只超期或还没开始，不因此开会。
+5. 符合条件的项各产出一场。其中恰好一个 `item_id` 写入 `ai_recommended_item_id`。没有符合条件的项时，该字段为 null。
 5. 时间写成 `YYYY-MM-DD HH:mm`。原文有钟点就用该钟点，只有日期就用 `10:00`。
 6. `todos` 的每条 `item_id` 必须来自输入中的行。
 
