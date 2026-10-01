@@ -1,7 +1,7 @@
 #pragma once
 
-// Build adapter for black-box cases. libs/core on main does not declare robot_pm::App.
-// The assertions stay in the case files. Those cases are skipped until this symbol exists.
+// 这个文件负责黑盒用例面对的 robot PM 应用。
+// 不变量：同意前不写表、不建日程；审计只追加；一个人同时只有一个打开的交互目录。
 
 #include "robot_pm/error.hpp"
 
@@ -10,6 +10,7 @@
 #include <chrono>
 #include <expected>
 #include <filesystem>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,8 +36,7 @@ public:
     virtual ~FeishuPort() = default;
     virtual std::expected<nlohmann::json, Error> send(const nlohmann::json& message) = 0;
     virtual std::expected<std::string, Error> primary_calendar_id() = 0;
-    virtual std::expected<nlohmann::json, Error> create_calendar_event(
-            const nlohmann::json& event) = 0;
+    virtual std::expected<nlohmann::json, Error> create_calendar_event(const nlohmann::json& event) = 0;
     virtual std::expected<void, Error> delete_calendar_event(std::string_view calendar_id,
                                                              std::string_view event_id) = 0;
 };
@@ -45,11 +45,9 @@ class BitablePort {
 public:
     virtual ~BitablePort() = default;
     virtual std::expected<nlohmann::json, Error> list_fields(std::string_view table) = 0;
-    virtual std::expected<void, Error> create_field(std::string_view table,
-                                                    const nlohmann::json& field) = 0;
+    virtual std::expected<void, Error> create_field(std::string_view table, const nlohmann::json& field) = 0;
     virtual std::expected<nlohmann::json, Error> list_records(std::string_view table) = 0;
-    virtual std::expected<nlohmann::json, Error> upsert(std::string_view table,
-                                                        const nlohmann::json& incoming) = 0;
+    virtual std::expected<nlohmann::json, Error> upsert(std::string_view table, const nlohmann::json& incoming) = 0;
     virtual std::expected<void, Error> undo(const nlohmann::json& compensation) = 0;
 };
 
@@ -98,43 +96,31 @@ struct Ports {
 
 class App {
 public:
-    App(Config config, Ports ports) : config_(std::move(config)), ports_(ports) {}
+    App(Config config, Ports ports);
     ~App() = default;
     App(const App&) = delete;
     App& operator=(const App&) = delete;
 
-    std::expected<nlohmann::json, Error> handle_event(const nlohmann::json&) { return missing(); }
-    std::expected<nlohmann::json, Error> import_inbox() { return missing(); }
-    std::expected<nlohmann::json, Error> project_manifest(const nlohmann::json&) {
-        return missing();
-    }
-    std::expected<nlohmann::json, Error> project_manifest_text(std::string_view) {
-        return missing();
-    }
-    std::expected<nlohmann::json, Error> compare_edits(const nlohmann::json&, const nlohmann::json&) {
-        return missing();
-    }
-    std::expected<nlohmann::json, Error> write_edits(const nlohmann::json&) { return missing(); }
-    std::expected<nlohmann::json, Error> watch(const nlohmann::json&,
-                                               const nlohmann::json&,
-                                               std::string_view) {
-        return missing();
-    }
-    std::expected<nlohmann::json, Error> audit_slices(const nlohmann::json&) { return missing(); }
-    std::expected<nlohmann::json, Error> enqueue(const nlohmann::json&) { return missing(); }
-    std::vector<std::string> command_ids() const { return {}; }
-    std::expected<nlohmann::json, Error> sweep() { return missing(); }
-    std::expected<nlohmann::json, Error> preview_prompt(std::string_view) { return missing(); }
+    std::expected<nlohmann::json, Error> handle_event(const nlohmann::json& event);
+    std::expected<nlohmann::json, Error> import_inbox();
+    std::expected<nlohmann::json, Error> project_manifest(const nlohmann::json& manifest);
+    std::expected<nlohmann::json, Error> project_manifest_text(std::string_view text);
+    std::expected<nlohmann::json, Error> compare_edits(const nlohmann::json& manifest, const nlohmann::json& edits);
+    std::expected<nlohmann::json, Error> write_edits(const nlohmann::json& edits);
+    std::expected<nlohmann::json, Error> watch(const nlohmann::json& plan,
+                                               const nlohmann::json& actual,
+                                               std::string_view today);
+    std::expected<nlohmann::json, Error> audit_slices(const nlohmann::json& packet);
+    std::expected<nlohmann::json, Error> enqueue(const nlohmann::json& command);
+    std::vector<std::string> command_ids() const;
+    std::expected<nlohmann::json, Error> sweep();
+    std::expected<nlohmann::json, Error> preview_prompt(std::string_view step);
 
 private:
-    std::expected<nlohmann::json, Error> missing() const {
-        static_cast<void>(config_.data_root);
-        static_cast<void>(&ports_.model);
-        return std::unexpected(Error{ErrorCode::kUnknownEvent, "missing symbol: robot_pm::App"});
-    }
-
     Config config_;
     Ports ports_;
+    std::vector<std::string> command_ids_;
+    std::set<std::string> awaiting_role_;
 };
 
 }  // namespace robot_pm
