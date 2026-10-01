@@ -1099,7 +1099,11 @@ void remove_empty_parent(const fs::path& person) {
     if ((has_start || has_end) && item->value("node", "") != "flexible") {
         return json{{"action", "none"}};
     }
-    json plan = {{"kind", "status"}, {"item_id", item_id}};
+    json plan = {{"kind", "status"},
+                 {"item_id", item_id},
+                 {"seen_status", item->value("状态", "")},
+                 {"seen_start", item->value("开始", "")},
+                 {"seen_end", item->value("结束", "")}};
     if (has_status && parsed.at("status").is_string()) {
         plan["status"] = parsed.at("status");
     }
@@ -1167,10 +1171,39 @@ void remove_empty_parent(const fs::path& person) {
     return ask(session, "status_update", context.dump() + "\n" + std::string(text));
 }
 
+[[nodiscard]] bool plan_is_executing(const json& context) {
+    return context.value("progress", "") == "executing";
+}
+
+[[nodiscard]] bool sweep_skips(const json& context) {
+    const bool background = context.contains("background") && context["background"].is_boolean() &&
+                            context["background"].get<bool>();
+    return plan_is_executing(context) || background || context.value("step", "") == "project";
+}
+
+[[nodiscard]] bool row_drifted(const json* item, const json& context) {
+    if (!context.contains("seen_status") && !context.contains("seen_start") && !context.contains("seen_end")) {
+        return false;
+    }
+    if (item == nullptr) {
+        return true;
+    }
+    const auto drifted = [&](const char* seen_key, const char* row_key) {
+        if (!context.contains(seen_key)) {
+            return false;
+        }
+        return item->value(row_key, "") != context.value(seen_key, "");
+    };
+    return drifted("seen_status", "状态") || drifted("seen_start", "开始") || drifted("seen_end", "结束");
+}
+
 [[nodiscard]] std::expected<json, Error> on_cancel_text(Session& session, std::string_view open_id) {
     if (const std::optional<fs::path> own = find_person_dir(session.config.data_root, open_id)) {
         const std::optional<LocatedPlan> plan = find_plan(session.config.data_root, own->filename().string());
         if (plan && plan->owner == open_id) {
+            if (plan_is_executing(plan->context)) {
+                return json::object();
+            }
             return cancel_plan(session, *plan, false);
         }
     }
@@ -1184,6 +1217,9 @@ void remove_empty_parent(const fs::path& person) {
             const std::optional<LocatedPlan> plan =
                     find_plan(session.config.data_root, system->filename().string());
             if (plan) {
+                if (plan_is_executing(plan->context)) {
+                    return json::object();
+                }
                 return cancel_plan(session, *plan, false);
             }
         }
@@ -1303,6 +1339,14 @@ void remove_empty_parent(const fs::path& person) {
     }
     const std::string kind = plan.context.value("kind", "");
     if (kind == "status") {
+        const std::expected<json, Error> records = list_table(session, kMainTable);
+        if (!records) {
+            return std::unexpected(records.error());
+        }
+        const json* item = find_record(*records, plan.context.value("item_id", ""));
+        if (row_drifted(item, plan.context)) {
+            return cancel_plan(session, plan, false);
+        }
         json row = {{"业务id", plan.context.value("item_id", "")}};
         if (plan.context.contains("status")) {
             row["状态"] = plan.context.at("status");
@@ -1384,7 +1428,7 @@ void remove_empty_parent(const fs::path& person) {
         return json::object();
     }
     if (action == "取消") {
-        if (plan->owner != actor) {
+        if (plan->owner != actor || plan_is_executing(plan->context)) {
             return json::object();
         }
         return cancel_plan(session, *plan, false);
@@ -1822,7 +1866,7 @@ void remove_empty_parent(const fs::path& person) {
             }
             const json context = json::parse(read_text(interaction->path() / "context.json"), nullptr, false);
             if (context.is_discarded() || !context.is_object() || !context.contains("created_unix") ||
-                !context.at("created_unix").is_number_integer()) {
+                !context.at("created_unix").is_number_integer() || sweep_skips(context)) {
                 continue;
             }
             const clock_tp created{std::chrono::seconds{context.at("created_unix").get<std::int64_t>()}};
