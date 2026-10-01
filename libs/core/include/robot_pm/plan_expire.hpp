@@ -19,7 +19,7 @@ struct CancelNotice {
     std::string text;
 };
 
-// 前置条件：memory_root 下有 working/plans。now 是 UTC。
+// 前置条件：等待中的计划在 working/<open_id>/<interaction_id>/。now 是 UTC。
 // 失败：kEditRejected，计划文件保持原样。
 // 超时只产生通知意图，不在这里发送。
 [[nodiscard]] std::expected<std::vector<CancelNotice>, Error> expire_waiting_plans(

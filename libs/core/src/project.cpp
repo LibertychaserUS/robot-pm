@@ -71,9 +71,8 @@ namespace {
                                                                std::set<std::string>& ids,
                                                                std::map<std::string, std::vector<std::string>>&
                                                                    predecessors) {
-    static const std::set<std::string> kAllowed{"id",          "title",     "kind",         "status",
-                                                "start",       "end",       "predecessors", "owner_role",
-                                                "meet",        "source_quote"};
+    static const std::set<std::string> kAllowed{"id",     "title", "kind",   "status",      "start", "end",
+                                                "predecessors", "owner_role", "meet", "source_quote", "node"};
     if (!item.is_object() || !keys_allowed(item, kAllowed) || !item.contains("id") || !item["id"].is_string() ||
         item["id"].get_ref<const std::string&>().empty() || !item.contains("title") || !item["title"].is_string() ||
         item["title"].get_ref<const std::string&>().empty() || !item.contains("kind") || !item["kind"].is_string() ||
@@ -100,6 +99,15 @@ namespace {
         const std::string& meet = item["meet"].get_ref<const std::string&>();
         if (meet != "at_start" && meet != "at_end" && meet != "when_blocked") {
             return std::unexpected(Error{ErrorCode::kEditRejected, "meet 不在规格里"});
+        }
+    }
+    if (item.contains("node")) {
+        if (!item["node"].is_string()) {
+            return std::unexpected(Error{ErrorCode::kEditRejected, "node 不在规格里"});
+        }
+        const std::string& node = item["node"].get_ref<const std::string&>();
+        if (node != "flexible" && node != "deadline" && node != "release") {
+            return std::unexpected(Error{ErrorCode::kEditRejected, "node 不在规格里"});
         }
     }
     if (!source_text.empty()) {
@@ -135,6 +143,9 @@ namespace {
                           {"结束", end},
                           {"职责", item["owner_role"]},
                           {"前置", item["predecessors"]}};
+    if (item.contains("node")) {
+        row["node"] = item["node"];
+    }
     return row;
 }
 
@@ -142,7 +153,7 @@ namespace {
 
 std::expected<std::vector<nlohmann::json>, Error> project_manifest(const nlohmann::json& manifest,
                                                                    std::string_view source_text) {
-    static const std::set<std::string> kDocumentKeys{"id", "type", "title", "sections", "items"};
+    static const std::set<std::string> kDocumentKeys{"id", "type", "title", "sections", "items", "rejected"};
     static const std::set<std::string> kSectionKeys{"id", "title", "items"};
     if (!manifest.is_object() || manifest.size() != 2 || !manifest.contains("schema_version") ||
         !manifest.contains("documents") || !manifest["schema_version"].is_number_integer() ||
