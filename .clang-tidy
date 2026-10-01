@@ -1,0 +1,13 @@
+Checks: >
+  bugprone-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  readability-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -readability-identifier-length
+# Magic-number and short-name checks are style noise for JSON field gates and indexes.
+WarningsAsErrors: ''
+HeaderFilterRegex: 'libs/.*\.hpp'
+FormatStyle: file
