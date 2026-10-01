@@ -15,6 +15,7 @@
 3. `source_quote` 必须是原文中的连续子串。
 4. 日期只接受 `YYYY-MM-DD`。其它写法放入该文档的 `rejected`，并带上原文，不要猜测。
 5. 只有原文写了开会，才填 `meet`，取值只能是 `at_start`、`at_end`、`when_blocked`。
+6. `node` 只在原文写明时填写：对外或客户日期写 `deadline`，发布或上线写 `release`，内部可调整写 `flexible`。没写明就不填，不要猜测。
 
 ## Output
 
