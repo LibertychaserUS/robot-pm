@@ -10,7 +10,7 @@
 
 ## Procedure
 
-为每一条写一段中文，点出 `owner_role`、标题和判断。保持原有 `id` 和顺序。
+为每一条写一段中文，点出 `owner_role`、标题和判断。`deadline` 和 `release` 的日期写成不可改。`flexible` 可以写上可调整。保持原有 `id` 和顺序。
 
 ## Output
 
