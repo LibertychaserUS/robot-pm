@@ -24,6 +24,28 @@ jobs:
       - name: CTest regression
         run: ctest --test-dir build -L regression --output-on-failure
 
+      - name: Fail on black-box skipped cases
+        run: |
+          set -euo pipefail
+          log=$(mktemp)
+          set +e
+          ./build/tests/blackbox/robot_pm_blackbox >"$log" 2>&1
+          status=$?
+          set -e
+          cat "$log"
+          summary=$(grep -E 'test cases:.*passed.*failed.*skipped' "$log" | tail -n 1 || true)
+          if [ -z "${summary}" ]; then
+            echo "black-box binary did not print a pass/fail/skip summary"
+            exit 1
+          fi
+          echo "pass/fail/skip summary: ${summary}"
+          skipped=$(printf '%s\n' "${summary}" | sed -E 's/.*[^0-9]([0-9]+) skipped.*/\1/')
+          if [ "${skipped}" != "0" ]; then
+            echo "black-box skipped count is ${skipped}"
+            exit 1
+          fi
+          exit "${status}"
+
       - name: Pytest
         run: |
           python3 -m venv .venv
