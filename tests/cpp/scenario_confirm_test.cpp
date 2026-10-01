@@ -86,7 +86,7 @@ TEST_CASE("scenario.confirm_gates_fail_if_table_or_group_card_moves_early") {
 
     ScriptedAct meeting_model;
     meeting_model.stdout_text =
-        R"({"meetings":[{"item_id":"w2","title":"发布前会","attendee_roles":["接口"],"start":"2026-10-03 10:00"}],"todos":[],"ai_recommended_item_id":"w2"})";
+        R"({"meetings":[{"item_id":"w2","title":"发布前会","attendee_roles":["接口"],"start":"2026-10-03 10:00","end":"2026-10-03 11:00"}],"todos":[],"ai_recommended_item_id":"w2"})";
     const nlohmann::json roles = nlohmann::json::array({{{"open_id", "ou_b"}, {"role", "接口"}}});
     RecordingCalendar calendar;
     const auto meeting =
@@ -95,7 +95,7 @@ TEST_CASE("scenario.confirm_gates_fail_if_table_or_group_card_moves_early") {
     CHECK(meeting_model.calls == 1);
     CHECK_FALSE(meeting->group_card_sent);
     CHECK(calendar.calls == 0);
-    const auto released = robot_pm::confirm_meeting_plan("ou_a", "接口", "同意", meeting->plan);
+    const auto released = robot_pm::confirm_meeting_plan("ou_a", "接口", "确认", meeting->plan);
     REQUIRE(released.has_value());
     CHECK(released->group_card_sent);
     CHECK_FALSE(released->meeting_created);

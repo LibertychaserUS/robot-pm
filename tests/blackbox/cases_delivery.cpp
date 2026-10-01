@@ -45,6 +45,8 @@ BB_TEST_CASE("delivery.hold_does_not_create_a_calendar_event") {
                      {"item_id", "w1"},
                      {"title", "接飞书"},
                      {"agenda", "开始"},
+                     {"start", "2026-10-01 10:00"},
+                     {"end", "2026-10-01 11:00"},
                      {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array({json{{"item_id", "w1"}, {"title", "接飞书"}}})},
             {"ai_recommended_item_id", "w1"}}
@@ -68,6 +70,8 @@ BB_TEST_CASE("delivery.nobody_clicks_creates_no_meeting") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "开始"},
+                                 {"start", "2026-10-01 10:00"},
+                                 {"end", "2026-10-01 11:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
             {"ai_recommended_item_id", "w1"}}
@@ -89,6 +93,8 @@ BB_TEST_CASE("delivery.agree_creates_one_meeting_not_a_second") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "开始"},
+                                 {"start", "2026-10-01 10:00"},
+                                 {"end", "2026-10-01 11:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
             {"ai_recommended_item_id", "w1"}}
@@ -116,6 +122,8 @@ BB_TEST_CASE("delivery.defer_records_decision_and_creates_no_meeting") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "开始"},
+                                 {"start", "2026-10-01 10:00"},
+                                 {"end", "2026-10-01 11:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
             {"ai_recommended_item_id", "w1"}}
@@ -217,6 +225,8 @@ BB_TEST_CASE("delivery.no_group_id_sends_no_card") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "开始"},
+                                 {"start", "2026-10-01 10:00"},
+                                 {"end", "2026-10-01 11:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
             {"ai_recommended_item_id", "w1"}}
@@ -238,7 +248,7 @@ BB_TEST_CASE("delivery.midnight_beijing_not_utc") {
             {"类型", "milestone"},
             {"状态", "todo"},
             {"开始", "2026-10-01"},
-            {"结束", "2026-10-01"},
+            {"结束", "2026-10-02"},
             {"职责", "接口"},
             {"node", "release"}}});
     fixture.bitable.role_rows = json::array({json{
@@ -250,10 +260,11 @@ BB_TEST_CASE("delivery.midnight_beijing_not_utc") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "凌晨"},
+                                 {"start", "2026-10-01 00:30"},
+                                 {"end", "2026-10-01 01:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
-            {"ai_recommended_item_id", "w1"},
-            {"meeting_end", "2026-10-01 00:30"}}
+            {"ai_recommended_item_id", "w1"}}
                                       .dump();
     auto result = fixture.app->handle_event(
             json{{"kind", "timer"}, {"message_id", "tm1"}, {"today", "2026-10-01"}});

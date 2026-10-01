@@ -1,5 +1,6 @@
 #include "robot_pm/meeting_plan.hpp"
 
+#include <map>
 #include <string>
 
 namespace robot_pm {
@@ -125,18 +126,68 @@ std::expected<MeetingPlanResult, Error> propose_meeting_plan(std::string_view us
         !output.contains("ai_recommended_item_id")) {
         return std::unexpected(Error{ErrorCode::kEditRejected, "会议计划输出不是规定的 JSON"});
     }
+    std::map<std::string, std::string> release_dates;
+    const nlohmann::json payload = nlohmann::json::parse(std::string(user_payload), nullptr, false);
+    if (!payload.is_discarded()) {
+        const auto collect = [&](auto&& self, const nlohmann::json& node) -> void {
+            if (node.is_array()) {
+                for (const nlohmann::json& child : node) {
+                    self(self, child);
+                }
+                return;
+            }
+            if (!node.is_object()) {
+                return;
+            }
+            if (node.contains("node") && node["node"].is_string() &&
+                node["node"].get_ref<const std::string&>() == "release") {
+                std::string id;
+                if (node.contains("id") && node["id"].is_string()) {
+                    id = node["id"].get<std::string>();
+                } else if (node.contains("业务id") && node["业务id"].is_string()) {
+                    id = node["业务id"].get<std::string>();
+                }
+                std::string date;
+                if (node.contains("end") && node["end"].is_string()) {
+                    date = node["end"].get<std::string>();
+                } else if (node.contains("结束") && node["结束"].is_string()) {
+                    date = node["结束"].get<std::string>();
+                }
+                if (!id.empty()) {
+                    release_dates.insert_or_assign(id, std::move(date));
+                }
+            }
+            for (auto it = node.begin(); it != node.end(); ++it) {
+                if (it->is_object() || it->is_array()) {
+                    self(self, *it);
+                }
+            }
+        };
+        collect(collect, payload);
+    }
     nlohmann::json meetings = nlohmann::json::array();
     for (const nlohmann::json& meeting : output["meetings"]) {
         if (!meeting.is_object() || !meeting.contains("item_id") || !meeting["item_id"].is_string() ||
             !meeting.contains("title") || !meeting["title"].is_string() || !meeting.contains("start") ||
             !meeting["start"].is_string() || !is_beijing_clock(meeting["start"].get_ref<const std::string&>()) ||
-            !meeting.contains("attendee_roles") || !meeting["attendee_roles"].is_array()) {
+            !meeting.contains("end") || !meeting["end"].is_string() ||
+            !is_beijing_clock(meeting["end"].get_ref<const std::string&>()) ||
+            !meeting.contains("attendee_roles") || !meeting["attendee_roles"].is_array() ||
+            meeting.contains("meeting_end")) {
             return std::unexpected(Error{ErrorCode::kEditRejected, "会议计划输出不是规定的 JSON"});
         }
         for (auto it = meeting.begin(); it != meeting.end(); ++it) {
             if (it.key() != "item_id" && it.key() != "title" && it.key() != "agenda" && it.key() != "start" &&
                 it.key() != "end" && it.key() != "attendee_roles") {
                 return std::unexpected(Error{ErrorCode::kEditRejected, "会议计划输出不是规定的 JSON"});
+            }
+        }
+        const auto release = release_dates.find(meeting["item_id"].get_ref<const std::string&>());
+        if (release != release_dates.end()) {
+            const std::string& node_date = release->second;
+            const std::string& meeting_end = meeting["end"].get_ref<const std::string&>();
+            if (node_date.size() < 10 || meeting_end.substr(0, 10) >= node_date.substr(0, 10)) {
+                return std::unexpected(Error{ErrorCode::kEditRejected, "发布节点之前才开会"});
             }
         }
         const std::expected<nlohmann::json, Error> attendees =
@@ -147,6 +198,7 @@ std::expected<MeetingPlanResult, Error> propose_meeting_plan(std::string_view us
         meetings.push_back({{"item_id", meeting["item_id"]},
                             {"title", meeting["title"]},
                             {"start", meeting["start"]},
+                            {"end", meeting["end"]},
                             {"attendees", *attendees}});
     }
     result.plan = {{"progress", "waiting"},
@@ -158,9 +210,9 @@ std::expected<MeetingPlanResult, Error> propose_meeting_plan(std::string_view us
         return result;
     }
     const std::string body = "将向群里发送会议卡片：" + meetings[0]["title"].get<std::string>() + " " +
-                             meetings[0]["start"].get<std::string>() + "（北京时间）。同意之后才发到群里。";
+                             meetings[0]["start"].get<std::string>() + "（北京时间）。确认之后才发到群里。";
     result.proposer_card = interactive_card(
-        "确认会议计划", body, nlohmann::json::array({button("同意", {{"stage", "plan"}}), button("取消", {{"stage", "plan"}})}));
+        "确认会议计划", body, nlohmann::json::array({button("确认", {{"stage", "plan"}}), button("取消", {{"stage", "plan"}})}));
     result.proposer_card_sent = true;
     result.group_card_sent = false;
     result.meeting_created = false;
@@ -184,7 +236,7 @@ std::expected<MeetingPlanResult, Error> confirm_meeting_plan(std::string_view ac
         return std::unexpected(Error{ErrorCode::kForbidden, "只有提出人能确认这次会议计划"});
     }
     result.meeting_created = false;
-    if (decision != "同意" || plan["meetings"].empty()) {
+    if (decision != "确认" || plan["meetings"].empty()) {
         result.plan["progress"] = "cancelled";
         result.group_card_sent = false;
         return result;
@@ -224,8 +276,12 @@ std::expected<MeetingPlanResult, Error> answer_group_meeting(std::string_view de
     if (!meeting.contains("attendees") || !meeting["attendees"].is_array() || meeting["attendees"].empty()) {
         return std::unexpected(Error{ErrorCode::kEditRejected, "没有对上的参会人，不预定"});
     }
+    if (!meeting.contains("end") || !meeting["end"].is_string()) {
+        return std::unexpected(Error{ErrorCode::kEditRejected, "会议计划输出不是规定的 JSON"});
+    }
     const nlohmann::json event = {{"timezone", "Asia/Shanghai"},
                                   {"start", meeting["start"]},
+                                  {"end", meeting["end"]},
                                   {"title", meeting["title"]},
                                   {"attendees", meeting["attendees"]}};
     const std::expected<std::string, Error> created = calendar.create_event(event);
