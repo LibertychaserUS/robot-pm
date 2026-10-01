@@ -61,7 +61,7 @@ TEST_CASE("meeting.group_card_is_not_sent_before_proposer_confirms") {
     REQUIRE_FALSE(too_early.has_value());
     CHECK(calendar.calls == 0);
 
-    const auto confirmed = robot_pm::confirm_meeting_plan("ou_a", "接口", "同意", proposed->plan);
+    const auto confirmed = robot_pm::confirm_meeting_plan("ou_a", "接口", "确认", proposed->plan);
     REQUIRE(confirmed.has_value());
     CHECK(confirmed->group_card_sent);
     CHECK_FALSE(confirmed->meeting_created);
@@ -86,7 +86,7 @@ TEST_CASE("meeting.other_person_cannot_release_the_group_card") {
         R"({"meetings":[{"item_id":"w3","title":"发布前会","attendee_roles":["接口"],"start":"2026-10-02 10:00","end":"2026-10-02 11:00"}],"todos":[],"ai_recommended_item_id":"w3"})";
     const auto proposed = robot_pm::propose_meeting_plan("{}", "prompt\n", "ou_a", kRoles, model);
     REQUIRE(proposed.has_value());
-    const auto confirmed = robot_pm::confirm_meeting_plan("ou_b", "接口", "同意", proposed->plan);
+    const auto confirmed = robot_pm::confirm_meeting_plan("ou_b", "接口", "确认", proposed->plan);
     REQUIRE_FALSE(confirmed.has_value());
     CHECK(confirmed.error().code == robot_pm::ErrorCode::kForbidden);
 }

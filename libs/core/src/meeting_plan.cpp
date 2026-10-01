@@ -210,9 +210,9 @@ std::expected<MeetingPlanResult, Error> propose_meeting_plan(std::string_view us
         return result;
     }
     const std::string body = "将向群里发送会议卡片：" + meetings[0]["title"].get<std::string>() + " " +
-                             meetings[0]["start"].get<std::string>() + "（北京时间）。同意之后才发到群里。";
+                             meetings[0]["start"].get<std::string>() + "（北京时间）。确认之后才发到群里。";
     result.proposer_card = interactive_card(
-        "确认会议计划", body, nlohmann::json::array({button("同意", {{"stage", "plan"}}), button("取消", {{"stage", "plan"}})}));
+        "确认会议计划", body, nlohmann::json::array({button("确认", {{"stage", "plan"}}), button("取消", {{"stage", "plan"}})}));
     result.proposer_card_sent = true;
     result.group_card_sent = false;
     result.meeting_created = false;
@@ -236,7 +236,7 @@ std::expected<MeetingPlanResult, Error> confirm_meeting_plan(std::string_view ac
         return std::unexpected(Error{ErrorCode::kForbidden, "只有提出人能确认这次会议计划"});
     }
     result.meeting_created = false;
-    if (decision != "同意" || plan["meetings"].empty()) {
+    if (decision != "确认" || plan["meetings"].empty()) {
         result.plan["progress"] = "cancelled";
         result.group_card_sent = false;
         return result;
