@@ -2,7 +2,7 @@
 
 // 这个文件负责飞书事件验签和接入分流。
 // 不变量：先验签再处理；群消息没有 @ 机器人就丢掉；飞书消息里的文件不导入。
-// 规格：docs/feishu-access.md。
+// 规格：docs/user-manual.md 的「怎么跟它说话」。
 
 #include "robot_pm/error.hpp"
 

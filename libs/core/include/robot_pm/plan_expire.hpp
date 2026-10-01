@@ -2,7 +2,7 @@
 
 // 这个文件负责让群里等待过久的计划超时。
 // 不变量：后台投影不因 30 分钟超时取消；executing 不取消；超时不写表、不改日历。
-// 规格：docs/sop.md 的「先确认再动手」，docs/sop/project.md。
+// 规格：docs/user-manual.md 的「先给计划，你确认后再做」。
 
 #include "robot_pm/error.hpp"
 

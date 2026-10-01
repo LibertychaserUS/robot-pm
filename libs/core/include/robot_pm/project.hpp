@@ -2,7 +2,7 @@
 
 // 这个文件负责把合法清单投影成模版行。
 // 不变量：不写状态列；不向群里发计划；清单不合法时一行都不产出。
-// 规格：docs/sop/project.md，docs/prd-to-bitable.md。
+// 规格：docs/user-manual.md 的「文档」。
 
 #include "robot_pm/error.hpp"
 

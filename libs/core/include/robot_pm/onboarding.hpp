@@ -2,7 +2,7 @@
 
 // 这个文件负责进群打招呼。
 // 不变量：进群只 @ 该成员一次并请他阐述职责；机器人入群不逐个 @；确认前不写职责、不发表单。
-// 规格：prompts/onboarding.md，docs/sop/role.md，docs/feishu-access.md。
+// 规格：prompts/onboarding.md，docs/user-manual.md 的「进群」。
 
 #include "robot_pm/error.hpp"
 #include "robot_pm/model_act.hpp"

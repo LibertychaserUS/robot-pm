@@ -1,8 +1,8 @@
 #pragma once
 
 // 这个文件负责把对话收成一次状态或小节点日期的确认计划。
-// 不变量：同意前不写表；deadline 和 release 的日期不改；标题和前置不改。
-// 规格：docs/sop.md 的「更新状态」，prompts/status_update.md。
+// 不变量：确认前不写表；deadline 和 release 的日期不改；标题和前置不改。
+// 规格：docs/user-manual.md 的「改状态」，prompts/status_update.md。
 
 #include "robot_pm/error.hpp"
 #include "robot_pm/model_act.hpp"

@@ -1,7 +1,7 @@
 [project]
 name = "robot-pm"
 version = "0.1.0"
-description = "Generic Feishu Bitable editor for robot PM"
+description = "Feishu project assistant and Bitable editor"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -2,7 +2,7 @@
 
 // 这个文件负责程序拼出的职责收集卡片。
 // 不变量：卡片由程序生成；模型不写卡片 JSON。
-// 规格：docs/sop.md 的「你进群之后」。
+// 规格：docs/user-manual.md 的「进群」。
 
 #include <nlohmann/json.hpp>
 

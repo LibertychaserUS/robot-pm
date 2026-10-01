@@ -2,7 +2,7 @@
 
 // 这个文件负责先向提出人确认会议计划，再把卡片发到群里。
 // 不变量：提出人确认前不发群卡片；群里点同意前不建日程。
-// 规格：docs/sop.md 的「平时怎么找我」，docs/sop/meeting.md。
+// 规格：docs/user-manual.md 的「开会」。
 
 #include "robot_pm/error.hpp"
 #include "robot_pm/model_act.hpp"

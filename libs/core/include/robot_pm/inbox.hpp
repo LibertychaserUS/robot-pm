@@ -2,7 +2,7 @@
 
 // 这个文件负责从云上收件目录导入一份文件，并在后台投影。
 // 不变量：一次只处理 inbox 里的一个文件；群文件不导入；不向群里发导入进度。
-// 规格：docs/import.md，docs/sop/project.md，docs/cpp23-standard.md 的「先计划后实施」。
+// 规格：docs/user-manual.md 的「文档」。
 
 #include "robot_pm/error.hpp"
 #include "robot_pm/model_act.hpp"
