@@ -1,7 +1,7 @@
 #pragma once
 
 // 这个文件负责先向提出人确认会议计划，再把卡片发到群里。
-// 不变量：提出人同意前不发群卡片；群里点同意前不建日程。
+// 不变量：提出人确认前不发群卡片；群里点同意前不建日程。
 // 规格：docs/sop.md 的「平时怎么找我」，docs/sop/meeting.md。
 
 #include "robot_pm/error.hpp"
@@ -44,7 +44,7 @@ struct MeetingPlanResult {
                                                                             ModelAct& model);
 
 // 前置条件：plan 处于 waiting。actor_open_id 是提出人，或计划没有提出人时 actor 的职责是 pm。
-// 失败：kForbidden 别人确认。decision 不是「同意」时不发群卡片，不建日程。
+// 失败：kForbidden 别人确认。decision 不是「确认」时不发群卡片，不建日程。
 [[nodiscard]] std::expected<MeetingPlanResult, Error> confirm_meeting_plan(std::string_view actor_open_id,
                                                                             std::string_view actor_role,
                                                                             std::string_view decision,

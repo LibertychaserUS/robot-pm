@@ -95,7 +95,7 @@ TEST_CASE("scenario.confirm_gates_fail_if_table_or_group_card_moves_early") {
     CHECK(meeting_model.calls == 1);
     CHECK_FALSE(meeting->group_card_sent);
     CHECK(calendar.calls == 0);
-    const auto released = robot_pm::confirm_meeting_plan("ou_a", "接口", "同意", meeting->plan);
+    const auto released = robot_pm::confirm_meeting_plan("ou_a", "接口", "确认", meeting->plan);
     REQUIRE(released.has_value());
     CHECK(released->group_card_sent);
     CHECK_FALSE(released->meeting_created);
