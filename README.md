@@ -46,3 +46,9 @@ python3 -m venv .venv
 ## 程序用的提示
 
 `prompts/` 里是机器人每一步用的系统提示。这些文件给程序读，不要在里面放密钥或真实的人名、群号。
+
+## 部署前检查
+
+持久化目录用一个 Cython 探针准备。它先检查主机，通过之后才建目录。检查失败就停，不留下半棵目录。它不启动 `robot-pm`，也不连接飞书。`apps/robot-pm/main.cpp` 目前只打印 `robot-pm`。
+
+编译和运行见 [docs/deploy.md](docs/deploy.md)。
