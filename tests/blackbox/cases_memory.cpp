@@ -1,5 +1,5 @@
 #include "support.hpp"
-// Skipped: missing symbol robot_pm::App. Assertions below are unchanged.
+// Assertions below are unchanged.
 
 namespace bb {
 
