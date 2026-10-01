@@ -24,6 +24,8 @@ BB_TEST_CASE("role.missing_table_sends_collection_card_only") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "开始"},
+                                 {"start", "2026-10-01 10:00"},
+                                 {"end", "2026-10-01 11:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
             {"ai_recommended_item_id", "w1"}}
@@ -76,6 +78,8 @@ BB_TEST_CASE("role.complete_row_limits_attendees") {
                                  {"item_id", "w1"},
                                  {"title", "接飞书"},
                                  {"agenda", "开始"},
+                                 {"start", "2026-10-01 10:00"},
+                                 {"end", "2026-10-01 11:00"},
                                  {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
             {"ai_recommended_item_id", "w1"}}

@@ -38,7 +38,7 @@ TEST_CASE("meeting.group_card_is_not_sent_before_proposer_confirms") {
     // 失败：提出人同意前 group_card_sent 为真，或这时已经创建日程。
     ScriptedAct model;
     model.stdout_text =
-        R"({"meetings":[{"item_id":"w3","title":"发布前会","agenda":"看发布","attendee_roles":["接口"],"start":"2026-10-02 10:00"}],"todos":[],"ai_recommended_item_id":"w3"})";
+        R"({"meetings":[{"item_id":"w3","title":"发布前会","agenda":"看发布","attendee_roles":["接口"],"start":"2026-10-02 10:00","end":"2026-10-02 11:00"}],"todos":[],"ai_recommended_item_id":"w3"})";
     RecordingCalendar calendar;
 
     const auto proposed = robot_pm::propose_meeting_plan(R"({"today":"2026-10-01"})", "prompt\n", "ou_a", kRoles, model);
@@ -83,7 +83,7 @@ TEST_CASE("meeting.group_card_is_not_sent_before_proposer_confirms") {
 TEST_CASE("meeting.other_person_cannot_release_the_group_card") {
     ScriptedAct model;
     model.stdout_text =
-        R"({"meetings":[{"item_id":"w3","title":"发布前会","attendee_roles":["接口"],"start":"2026-10-02 10:00"}],"todos":[],"ai_recommended_item_id":"w3"})";
+        R"({"meetings":[{"item_id":"w3","title":"发布前会","attendee_roles":["接口"],"start":"2026-10-02 10:00","end":"2026-10-02 11:00"}],"todos":[],"ai_recommended_item_id":"w3"})";
     const auto proposed = robot_pm::propose_meeting_plan("{}", "prompt\n", "ou_a", kRoles, model);
     REQUIRE(proposed.has_value());
     const auto confirmed = robot_pm::confirm_meeting_plan("ou_b", "接口", "同意", proposed->plan);

@@ -285,10 +285,11 @@ BB_TEST_CASE("logic.release_node_can_recommend_meeting_before_its_date") {
                      {"item_id", "w1"},
                      {"title", "接飞书"},
                      {"agenda", "发布前"},
+                     {"start", "2026-10-09 10:00"},
+                     {"end", "2026-10-09 11:00"},
                      {"attendee_roles", json::array({"接口"})}}})},
             {"todos", json::array()},
-            {"ai_recommended_item_id", "w1"},
-            {"meeting_end", "2026-10-09 10:00"}}
+            {"ai_recommended_item_id", "w1"}}
                                       .dump();
     auto result = fixture.app->handle_event(json{
             {"kind", "timer"},
@@ -296,7 +297,9 @@ BB_TEST_CASE("logic.release_node_can_recommend_meeting_before_its_date") {
             {"today", "2026-10-01"}});
     expect_ok(result);
     CHECK(result->at("ai_recommended_item_id") == "w1");
-    CHECK(result->at("meeting_end") == "2026-10-09 10:00");
+    CHECK_FALSE(result->contains("meeting_end"));
+    CHECK(result->at("meetings")[0].at("start") == "2026-10-09 10:00");
+    CHECK(result->at("meetings")[0].at("end") == "2026-10-09 11:00");
     CHECK(fixture.feishu.events.empty());
 }
 
