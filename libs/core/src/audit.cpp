@@ -50,8 +50,9 @@ std::expected<void, Error> replace_file(const std::filesystem::path& destination
 }
 
 std::string format_beijing(std::chrono::system_clock::time_point now) {
-    const std::chrono::zoned_time zoned{"Asia/Shanghai", now};
-    return std::format("{:%Y-%m-%d %H:%M}", zoned);
+    const auto seconds = std::chrono::floor<std::chrono::seconds>(now);
+    const std::chrono::zoned_time zoned{"Asia/Shanghai", seconds};
+    return std::format("{:%Y-%m-%d %H:%M:%S}", zoned);
 }
 
 std::expected<void, Error> append_jsonl(const std::filesystem::path& destination,

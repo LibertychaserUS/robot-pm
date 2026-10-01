@@ -4,8 +4,7 @@
 
 #include <doctest/doctest.h>
 
-// Missing symbol: robot_pm::App. The case body keeps its assertions and does not run.
-#define BB_TEST_CASE(name) TEST_CASE(name * doctest::skip(true))
+#define BB_TEST_CASE(name) TEST_CASE(name)
 
 #include <algorithm>
 #include <chrono>

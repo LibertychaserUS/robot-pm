@@ -15,7 +15,7 @@
 namespace robot_pm {
 
 // 前置条件：now 是 UTC 时间点。
-// 失败：不失败。输出是北京时间 YYYY-MM-DD HH:mm。
+// 失败：不失败。输出是北京时间 YYYY-MM-DD HH:mm:ss。
 [[nodiscard]] std::string format_beijing(std::chrono::system_clock::time_point now);
 
 // 前置条件：line 是一条 JSON 对象。parent 目录可以还不存在。

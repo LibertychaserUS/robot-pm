@@ -106,7 +106,7 @@ TEST_CASE("working_memory.end_writes_tombstone_then_deletes_directory") {
     CHECK(events.at("actor") == "ou_a");
     CHECK(events.at("op") == "confirm");
     CHECK(events.at("outcome") == "done");
-    CHECK(events.at("time") == "2026-10-01 10:00");
+    CHECK(events.at("time") == "2026-10-01 10:00:00");
     const auto again = robot_pm::end_interaction(root, "ou_a", "om_1", "confirm", "done", beijing_ten());
     REQUIRE_FALSE(again.has_value());
     CHECK(read_text(root / "episodic" / "events.jsonl").find('\n') ==
