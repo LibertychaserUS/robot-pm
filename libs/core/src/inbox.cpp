@@ -287,7 +287,7 @@ std::expected<InboxOutcome, Error> import_next_inbox_file(const std::filesystem:
         return finish_without_upload(memory_root, now, source, "import");
     }
     const std::filesystem::path plan_path =
-        memory_root / "working" / "plans" / (std::string("project-") + source.stem().string() + ".json");
+        memory_root / "working" / (std::string("project-") + source.stem().string()) / "plan" / "context.json";
     const std::expected<void, Error> executing = write_plan(plan_path, "executing", source);
     if (!executing.has_value()) {
         return std::unexpected(executing.error());

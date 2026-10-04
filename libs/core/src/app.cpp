@@ -282,7 +282,7 @@ private:
         return std::unexpected(fail(ErrorCode::kUnsupportedType, "documents 必须是数组"));
     }
 
-    static const std::set<std::string> kDocument{"id", "type", "title", "sections", "items", "parent_id"};
+    static const std::set<std::string> kDocument{"id", "type", "title", "sections", "items", "parent_id", "rejected"};
     static const std::set<std::string> kSection{"id", "title", "items"};
     static const std::set<std::string> kItem{"id",     "title", "kind",   "status", "start",        "end",
                                              "predecessors", "owner_role", "meet", "source_quote", "node"};
@@ -440,15 +440,19 @@ private:
                 }
                 predecessors[**id] = previous;
                 item_ids.insert(**id);
-                rows.push_back(json{{"业务id", **id},
-                                    {"标题", **title},
-                                    {"层级", "item"},
-                                    {"父记录", json::array({parent_id})},
-                                    {"类型", **kind},
-                                    {"开始", **start},
-                                    {"结束", **end},
-                                    {"前置", item.at("predecessors")},
-                                    {"职责", **owner}});
+                json row = {{"业务id", **id},
+                            {"标题", **title},
+                            {"层级", "item"},
+                            {"父记录", json::array({parent_id})},
+                            {"类型", **kind},
+                            {"开始", **start},
+                            {"结束", **end},
+                            {"前置", item.at("predecessors")},
+                            {"职责", **owner}};
+                if (item.contains("node")) {
+                    row["node"] = item.at("node");
+                }
+                rows.push_back(std::move(row));
             }
             return {};
         };
@@ -613,7 +617,7 @@ private:
     }
     for (fs::directory_iterator person(working, error); !error && person != fs::directory_iterator();
          person.increment(error)) {
-        if (!person->is_directory() || person->path().filename() == "plans") {
+        if (!person->is_directory()) {
             continue;
         }
         std::error_code child_error;
@@ -654,7 +658,7 @@ private:
     }
     for (fs::directory_iterator person(working, error); !error && person != fs::directory_iterator();
          person.increment(error)) {
-        if (!person->is_directory() || person->path().filename() == "plans") {
+        if (!person->is_directory()) {
             continue;
         }
         const fs::path directory = person->path() / std::string(interaction_id);
@@ -1458,6 +1462,9 @@ void remove_empty_parent(const fs::path& person) {
     if (!parsed || !parsed->is_object()) {
         return std::unexpected(fail(ErrorCode::kEditRejected, "会议建议不是 JSON"));
     }
+    if (parsed->contains("meeting_end")) {
+        return std::unexpected(fail(ErrorCode::kEditRejected, "会议建议不接受 meeting_end"));
+    }
     const bool recommends = (parsed->contains("meetings") && parsed->at("meetings").is_array() &&
                              !parsed->at("meetings").empty()) ||
                             (parsed->contains("ai_recommended_item_id") &&
@@ -1468,6 +1475,30 @@ void remove_empty_parent(const fs::path& person) {
     }
     if (!parsed->contains("meetings") || !parsed->at("meetings").is_array() || parsed->at("meetings").empty()) {
         return *parsed;
+    }
+    const auto clock_ok = [](const json& value) {
+        if (!value.is_string()) {
+            return false;
+        }
+        const std::string& text = value.get_ref<const std::string&>();
+        if (text.size() != 16 || text[4] != '-' || text[7] != '-' || text[10] != ' ' || text[13] != ':') {
+            return false;
+        }
+        for (std::size_t index = 0; index < text.size(); ++index) {
+            if (index == 4 || index == 7 || index == 10 || index == 13) {
+                continue;
+            }
+            if (text[index] < '0' || text[index] > '9') {
+                return false;
+            }
+        }
+        return true;
+    };
+    for (const json& meeting : parsed->at("meetings")) {
+        if (!meeting.is_object() || meeting.contains("meeting_end") || !meeting.contains("start") ||
+            !meeting.contains("end") || !clock_ok(meeting.at("start")) || !clock_ok(meeting.at("end"))) {
+            return std::unexpected(fail(ErrorCode::kEditRejected, "会议建议要带 start 和 end"));
+        }
     }
     const std::expected<json, Error> roles = list_table(session, kRoleTable);
     if (!roles) {
@@ -1496,18 +1527,30 @@ void remove_empty_parent(const fs::path& person) {
         item_id = parsed->at("meetings").at(0).value("item_id", "");
     }
     const json* item = find_record(*records, item_id);
-    std::string when;
-    if (parsed->contains("meeting_end") && parsed->at("meeting_end").is_string()) {
-        when = parsed->at("meeting_end").get_ref<const std::string&>();
-    } else {
-        const std::string date = item == nullptr ? event.value("today", "") : item->value("开始", "");
-        when = date + " 10:00";
+    const json* chosen = nullptr;
+    for (const json& meeting : parsed->at("meetings")) {
+        if (!meeting.is_object() || meeting.contains("meeting_end") || !meeting.contains("start") ||
+            !meeting.contains("end") || !clock_ok(meeting.at("start")) || !clock_ok(meeting.at("end"))) {
+            return std::unexpected(fail(ErrorCode::kEditRejected, "会议建议要带 start 和 end"));
+        }
+        const std::string meeting_item = meeting.value("item_id", "");
+        const json* meeting_row = find_record(*records, meeting_item);
+        if (meeting_row != nullptr && meeting_row->value("node", "") == "release") {
+            const std::string node_date = meeting_row->value("结束", meeting_row->value("end", ""));
+            const std::string& meeting_end = meeting.at("end").get_ref<const std::string&>();
+            if (node_date.size() < 10 || meeting_end.substr(0, 10) >= node_date.substr(0, 10)) {
+                return std::unexpected(fail(ErrorCode::kEditRejected, "发布节点之前才开会"));
+            }
+        }
+        if (chosen == nullptr || meeting_item == item_id) {
+            chosen = &meeting;
+        }
     }
-    std::string end = when;
-    if (!parsed->contains("meeting_end")) {
-        const std::string date = item == nullptr ? event.value("today", "") : item->value("开始", "");
-        end = date + " 11:00";
+    if (chosen == nullptr) {
+        return std::unexpected(fail(ErrorCode::kEditRejected, "会议建议要带 start 和 end"));
     }
+    const std::string when = chosen->at("start").get_ref<const std::string&>();
+    const std::string end = chosen->at("end").get_ref<const std::string&>();
     const std::string item_role = item == nullptr ? "" : item->value("职责", "");
     const json attendees = attendees_for(*roles, item_role);
     json mentions = json::array();
@@ -1767,7 +1810,7 @@ void remove_empty_parent(const fs::path& person) {
     const clock_tp now = session.ports.clock.now();
     for (fs::directory_iterator person(working, error); !error && person != fs::directory_iterator();
          person.increment(error)) {
-        if (!person->is_directory() || person->path().filename() == "plans") {
+        if (!person->is_directory()) {
             continue;
         }
         std::error_code child_error;
