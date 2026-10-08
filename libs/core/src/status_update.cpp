@@ -44,7 +44,9 @@ namespace {
             return false;
         }
     }
-    return true;
+    const int month = (text[5] - '0') * 10 + (text[6] - '0');
+    const int day = (text[8] - '0') * 10 + (text[9] - '0');
+    return month >= 1 && month <= 12 && day >= 1 && day <= 31;
 }
 
 [[nodiscard]] bool allowed_status(std::string_view status) {
@@ -269,8 +271,24 @@ std::expected<StatusUpdateResult, Error> confirm_status_update(std::string_view 
         }
     }
     const bool date_change = fields.contains("开始") || fields.contains("结束");
+    if (fields.contains("状态") && date_change) {
+        return std::unexpected(Error{ErrorCode::kEditRejected, "一次只改状态或只改日期"});
+    }
     if (date_change && plan["node"].get_ref<const std::string&>() != "flexible") {
         return std::unexpected(Error{ErrorCode::kEditRejected, "大节点和发布节点的日期不能改"});
+    }
+    if (date_change) {
+        const auto illegal_date = [&](const char* key) {
+            return fields.contains(key) &&
+                   (!fields[key].is_string() || !is_date(fields[key].get_ref<const std::string&>()));
+        };
+        if (illegal_date("开始") || illegal_date("结束")) {
+            return std::unexpected(Error{ErrorCode::kEditRejected, "日期不在规格里"});
+        }
+        if (fields.contains("开始") && fields.contains("结束") &&
+            fields["结束"].get_ref<const std::string&>() < fields["开始"].get_ref<const std::string&>()) {
+            return std::unexpected(Error{ErrorCode::kEditRejected, "日期不在规格里"});
+        }
     }
     if (fields.contains("状态") &&
         (!fields["状态"].is_string() || !allowed_status(fields["状态"].get_ref<const std::string&>()))) {

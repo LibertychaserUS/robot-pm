@@ -556,9 +556,26 @@ private:
     return system;
 }
 
+[[nodiscard]] std::expected<std::string, Error> wrap_model_input(std::string_view payload) {
+    if (payload.find("<untrusted_input>") != std::string_view::npos ||
+        payload.find("</untrusted_input>") != std::string_view::npos) {
+        return std::unexpected(fail(ErrorCode::kEditRejected, "输入不能改写提示边界"));
+    }
+    std::string wrapped;
+    wrapped.reserve(payload.size() + 40);
+    wrapped.append("<untrusted_input>\n");
+    wrapped.append(payload);
+    wrapped.append("\n</untrusted_input>");
+    return wrapped;
+}
+
 [[nodiscard]] std::expected<json, Error> ask(Session& session, std::string_view step, std::string user) {
+    const std::expected<std::string, Error> wrapped = wrap_model_input(user);
+    if (!wrapped) {
+        return std::unexpected(wrapped.error());
+    }
     const std::string system = system_prompt(session.config, step);
-    const std::expected<std::string, Error> raw = session.ports.model.complete(step, system, user);
+    const std::expected<std::string, Error> raw = session.ports.model.complete(step, system, *wrapped);
     if (!raw) {
         return std::unexpected(raw.error());
     }
@@ -1098,6 +1115,29 @@ void remove_empty_parent(const fs::path& person) {
     const bool has_end = parsed.contains("end");
     if ((has_start || has_end) && item->value("node", "") != "flexible") {
         return json{{"action", "none"}};
+    }
+    if (has_start || has_end) {
+        const auto proposed_date = [&](bool present, const char* key,
+                                        const char* row_key) -> std::expected<std::string, Error> {
+            if (!present) {
+                return item->value(row_key, "");
+            }
+            if (!parsed.at(key).is_string() || !is_date(parsed.at(key).get_ref<const std::string&>())) {
+                return std::unexpected(fail(ErrorCode::kEditRejected, "日期必须是 YYYY-MM-DD"));
+            }
+            return parsed.at(key).get<std::string>();
+        };
+        const std::expected<std::string, Error> start = proposed_date(has_start, "start", "开始");
+        if (!start) {
+            return std::unexpected(start.error());
+        }
+        const std::expected<std::string, Error> end = proposed_date(has_end, "end", "结束");
+        if (!end) {
+            return std::unexpected(end.error());
+        }
+        if (!is_date(*start) || !is_date(*end) || *end < *start) {
+            return std::unexpected(fail(ErrorCode::kEditRejected, "日期必须是 YYYY-MM-DD"));
+        }
     }
     json plan = {{"kind", "status"},
                  {"item_id", item_id},
