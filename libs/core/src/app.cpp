@@ -801,6 +801,28 @@ void remove_empty_parent(const fs::path& person) {
            std::find(roles.begin(), roles.end(), "pm") != roles.end();
 }
 
+// 群卡片只认这件事的职责。空职责或对不上的人不能点，也不把全群算进去。
+[[nodiscard]] bool role_matches_task(const std::vector<std::string>& roles, std::string_view item_role) {
+    if (item_role.empty()) {
+        return false;
+    }
+    return std::find(roles.begin(), roles.end(), std::string(item_role)) != roles.end();
+}
+
+void copy_string_field(json& payload, const json& event, const char* key) {
+    if (event.contains(key) && event.at(key).is_string()) {
+        payload[key] = event.at(key);
+    }
+}
+
+void stamp_card(json& payload, std::string_view message_id, const json& event, json pressers) {
+    payload["interaction_id"] = std::string(message_id);
+    payload["pressers"] = std::move(pressers);
+    for (const char* key : {"actor_name", "mention", "chat_id", "chat_mode", "group_message_type"}) {
+        copy_string_field(payload, event, key);
+    }
+}
+
 [[nodiscard]] json attendees_for(const json& role_rows, std::string_view item_role) {
     json attendees = json::array();
     if (!role_rows.is_array()) {
@@ -1095,7 +1117,8 @@ void remove_empty_parent(const fs::path& person) {
                                                        const json& records,
                                                        const json& role_rows,
                                                        std::string_view open_id,
-                                                       std::string_view message_id) {
+                                                       std::string_view message_id,
+                                                       const json& event) {
     if (parsed.contains("title") || parsed.contains("predecessors") || parsed.contains("owner_role")) {
         return std::unexpected(fail(ErrorCode::kEditRejected, "标题、前置和职责不能在对话里改"));
     }
@@ -1194,8 +1217,11 @@ void remove_empty_parent(const fs::path& person) {
     if (!begun) {
         return std::unexpected(begun.error());
     }
-    const std::expected<void, Error> sent = send_message(
-            session, json{{"text", notice}, {"buttons", json::array({"确认", "取消"})}, {"open_id", open_id}});
+    json payload{{"text", notice},
+                 {"buttons", json::array({"确认", "取消"})},
+                 {"open_id", std::string(open_id)}};
+    stamp_card(payload, message_id, event, json::array({std::string(open_id)}));
+    const std::expected<void, Error> sent = send_message(session, payload);
     if (!sent) {
         return std::unexpected(sent.error());
     }
@@ -1207,7 +1233,8 @@ void remove_empty_parent(const fs::path& person) {
                                                         const json& records,
                                                         const json& role_rows,
                                                         std::string_view open_id,
-                                                        std::string_view message_id) {
+                                                        std::string_view message_id,
+                                                        const json& event) {
     if (!parsed.contains("item_id") || !parsed.at("item_id").is_string()) {
         return std::unexpected(fail(ErrorCode::kUnknownField, "缺少工作项"));
     }
@@ -1234,8 +1261,9 @@ void remove_empty_parent(const fs::path& person) {
     if (!begun) {
         return std::unexpected(begun.error());
     }
-    const std::expected<void, Error> sent = send_message(
-            session, json{{"text", notice}, {"buttons", json::array({"确认", "取消"})}});
+    json payload{{"text", notice}, {"buttons", json::array({"确认", "取消"})}};
+    stamp_card(payload, message_id, event, json::array({std::string(open_id)}));
+    const std::expected<void, Error> sent = send_message(session, payload);
     if (!sent) {
         return std::unexpected(sent.error());
     }
@@ -1333,8 +1361,9 @@ void remove_empty_parent(const fs::path& person) {
         if (!begun) {
             return std::unexpected(begun.error());
         }
-        const std::expected<void, Error> sent =
-                send_message(session, json{{"text", "记职责，点确认才记下"}, {"buttons", json::array({"确认", "取消"})}});
+        json payload{{"text", "记职责，点确认才记下"}, {"buttons", json::array({"确认", "取消"})}};
+        stamp_card(payload, message_id, event, json::array({open_id}));
+        const std::expected<void, Error> sent = send_message(session, payload);
         if (!sent) {
             return std::unexpected(sent.error());
         }
@@ -1378,10 +1407,10 @@ void remove_empty_parent(const fs::path& person) {
     }
     const std::string action = parsed->value("action", "");
     if (action == "update") {
-        return propose_status(session, *parsed, *records, *role_rows, open_id, message_id);
+        return propose_status(session, *parsed, *records, *role_rows, open_id, message_id, event);
     }
     if (action == "reserve") {
-        return propose_reserve(session, *parsed, *records, *role_rows, open_id, message_id);
+        return propose_reserve(session, *parsed, *records, *role_rows, open_id, message_id, event);
     }
     const std::expected<void, Error> begun =
             begin_plan(session, open_id, message_id, json{{"kind", "chat"}, {"action", action}});
@@ -1511,20 +1540,23 @@ void remove_empty_parent(const fs::path& person) {
         return json::object();
     }
     if (action == "取消") {
-        if (plan->owner != actor || plan_is_executing(plan->context)) {
+        if (plan->owner != actor) {
+            return json{{"result", "拒"}};
+        }
+        if (plan_is_executing(plan->context)) {
             return json::object();
         }
         return cancel_plan(session, *plan, false);
     }
     if (action == "确认") {
         if (plan->owner != actor) {
-            return json::object();
+            return json{{"result", "拒"}};
         }
         return apply_confirm(session, *plan);
     }
     if (action == "同意" || action == "先不办") {
         if (plan->context.value("kind", "") != "meeting") {
-            return json::object();
+            return json{{"result", "拒"}};
         }
         const std::expected<json, Error> records = list_table(session, kMainTable);
         const std::expected<json, Error> roles = list_table(session, kRoleTable);
@@ -1533,8 +1565,8 @@ void remove_empty_parent(const fs::path& person) {
         }
         const json* item = find_record(*records, plan->context.value("item_id", ""));
         const std::string item_role = item == nullptr ? "" : item->value("职责", "");
-        if (!can_edit(roles_of(*roles, actor), item_role) && plan->owner != actor) {
-            return json::object();
+        if (!role_matches_task(roles_of(*roles, actor), item_role)) {
+            return json{{"result", "拒"}};
         }
         if (action == "先不办") {
             const std::expected<json, Error> written = upsert_one(
@@ -1689,11 +1721,11 @@ void remove_empty_parent(const fs::path& person) {
     const std::string title = parsed->at("meetings").at(0).is_object()
                                       ? parsed->at("meetings").at(0).value("title", "")
                                       : "";
-    const std::expected<void, Error> sent = send_message(
-            session,
-            json{{"text", "开会时间 " + when + "，北京时间"},
+    json payload{{"text", "开会时间 " + when + "，北京时间"},
                  {"buttons", json::array({"同意", "先不办"})},
-                 {"mentions", mentions}});
+                 {"mentions", mentions}};
+    stamp_card(payload, message_id, event, mentions);
+    const std::expected<void, Error> sent = send_message(session, payload);
     if (!sent) {
         return std::unexpected(sent.error());
     }
