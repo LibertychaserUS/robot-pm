@@ -436,7 +436,7 @@ BB_TEST_CASE("memory.sixth_person_gets_card_and_no_directory") {
     CHECK_FALSE(fs::exists(fixture.config.data_root / "working/ou_6"));
     CHECK(count_open_directories(fixture) == 5);
     REQUIRE(fixture.feishu.sent.size() == sent + 1);
-    CHECK(fixture.feishu.sent.back().dump().find("已经有 5 人在进行，请稍后再试") !=
+    CHECK(fixture.feishu.sent.back().dump().find("现在人满了，请稍后再试") !=
           std::string::npos);
 }
 

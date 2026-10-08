@@ -64,6 +64,32 @@ namespace {
     return nullptr;
 }
 
+[[nodiscard]] std::string shown_item(const nlohmann::json& row) {
+    if (row.contains("title") && row["title"].is_string()) {
+        const std::string& title = row["title"].get_ref<const std::string&>();
+        if (!title.empty()) {
+            return title;
+        }
+    }
+    return "这项";
+}
+
+[[nodiscard]] std::string shown_status(std::string_view status) {
+    if (status == "todo") {
+        return "未开始";
+    }
+    if (status == "doing") {
+        return "进行中";
+    }
+    if (status == "done") {
+        return "完成";
+    }
+    if (status == "blocked") {
+        return "卡住";
+    }
+    return "新进度";
+}
+
 [[nodiscard]] bool forbidden_key(std::string_view key) {
     return key == "title" || key == "predecessors" || key == "owner_role" || key == "node" ||
            key == "标题" || key == "前置" || key == "职责";
@@ -79,7 +105,7 @@ namespace {
     return nlohmann::json{
         {"msg_type", "interactive"},
         {"card",
-         {{"header", {{"title", {{"tag", "plain_text"}, {"content", "确认修改"}}}}},
+         {{"header", {{"title", {{"tag", "plain_text"}, {"content", "改进度"}}}}},
           {"elements",
            nlohmann::json::array(
                {{{"tag", "div"}, {"text", {{"tag", "plain_text"}, {"content", summary}}}},
@@ -226,15 +252,20 @@ std::expected<StatusUpdateResult, Error> propose_status_update(std::string_view 
                    {"item_id", (*row)["id"]},
                    {"node", node},
                    {"fields", *fields}};
-    std::string summary = "将修改 " + (*row)["id"].get<std::string>();
-    if (fields->contains("状态")) {
-        summary += " 的状态为 " + (*fields)["状态"].get<std::string>();
+    std::string summary = shown_item(*row);
+    if (fields->contains("状态") && (*fields)["状态"].is_string()) {
+        summary += "改为" + shown_status((*fields)["状态"].get_ref<const std::string&>());
     }
-    if (fields->contains("开始")) {
-        summary += " 的开始为 " + (*fields)["开始"].get<std::string>();
+    const bool has_start = fields->contains("开始") && (*fields)["开始"].is_string();
+    const bool has_end = fields->contains("结束") && (*fields)["结束"].is_string();
+    if (has_start) {
+        summary += "开始改为" + (*fields)["开始"].get<std::string>();
     }
-    if (fields->contains("结束")) {
-        summary += " 的结束为 " + (*fields)["结束"].get<std::string>();
+    if (has_end) {
+        if (has_start) {
+            summary += "，";
+        }
+        summary += "结束改为" + (*fields)["结束"].get<std::string>();
     }
     result.confirm_card = confirm_card(summary, result.plan);
     result.confirm_card_sent = true;

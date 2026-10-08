@@ -20,7 +20,7 @@ nlohmann::json build_collection_card() {
     nlohmann::json form = {{"tag", "form"}, {"name", "role_form"}, {"elements", std::move(elements)}};
     nlohmann::json card = {
         {"header",
-         {{"title", {{"tag", "plain_text"}, {"content", "填写职责"}}}}},
+         {{"title", {{"tag", "plain_text"}, {"content", "记职责"}}}}},
         {"elements", nlohmann::json::array({form})},
     };
     return {{"msg_type", "interactive"}, {"card", card}};

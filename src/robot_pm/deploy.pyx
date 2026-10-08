@@ -992,10 +992,17 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(
         prog="robot-pm-deploy",
-        description="检查主机并准备 robot PM 的持久化目录。不启动进程。",
+        description="只准备目录，不启动程序。",
+        add_help=False,
     )
-    parser.add_argument("--data-root", default=None)
-    parser.add_argument("--hold", action="store_true")
+    parser.add_argument("-h", "--帮助", action="help", help="显示这些说明")
+    parser.add_argument("--目录", dest="data_root", default=None, help="数据放在这个目录")
+    parser.add_argument(
+        "--占着",
+        dest="hold",
+        action="store_true",
+        help="准备好后先占着，不让别人同时准备",
+    )
     args = parser.parse_args(argv)
     if args.data_root:
         data_root = args.data_root

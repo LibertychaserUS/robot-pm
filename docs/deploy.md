@@ -11,14 +11,14 @@
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/robot-pm-deploy --data-root var/robot_pm
+.venv/bin/robot-pm-deploy --目录 var/robot_pm
 ```
 
-`--data-root` 省略时用环境变量 `ROBOT_PM_DATA_ROOT`，再省略就是当前目录下的 `var/robot_pm`。
+`--目录` 省略时用环境变量 `ROBOT_PM_DATA_ROOT`，再省略就是当前目录下的 `var/robot_pm`。
 
 成功时打印目录路径和最低字节数。失败时原因写在标准错误上，退出码是 1。环境变量的值不会打印。
 
-`--hold` 会在目录就绪后一直占着写入锁，直到标准输入结束。用来确认第二个进程不能同时准备这棵树。它仍然不启动机器人。
+`--占着` 会在目录就绪后一直占着写入锁，直到标准输入结束。用来确认第二个进程不能同时准备这棵树。它仍然不启动机器人。
 
 ## 它检查什么
 

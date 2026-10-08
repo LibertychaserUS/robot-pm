@@ -37,11 +37,11 @@ ctest --test-dir build -L regression --output-on-failure
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m robot_pm.bitable apply examples/edit.example.json --dry-run
+.venv/bin/python -m robot_pm.bitable 写入 examples/edit.example.json --只检查
 .venv/bin/pytest
 ```
 
-`examples/edit.example.json` 里的字段都是假的，用来看文件形状。`--dry-run` 只检查，不写表。
+`examples/edit.example.json` 里的字段都是假的，用来看文件形状。`--只检查` 只检查，不改表格。
 
 ## 程序用的提示
 

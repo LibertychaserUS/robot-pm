@@ -104,13 +104,12 @@ namespace {
                               {"type", "primary"},
                               {"value", {{"action", label}, {"item_id", item_id}}}};
     };
-    const std::string body = "将预定 " + plan["title"].get<std::string>() + " " +
-                             plan["start"].get<std::string>() + " 至 " + plan["end"].get<std::string>() +
-                             "（北京时间）";
+    const std::string body = plan["title"].get<std::string>() + " " + plan["start"].get<std::string>() +
+                             " 至 " + plan["end"].get<std::string>() + "，北京时间";
     return nlohmann::json{
         {"msg_type", "interactive"},
         {"card",
-         {{"header", {{"title", {{"tag", "plain_text"}, {"content", "确认预定"}}}}},
+         {{"header", {{"title", {{"tag", "plain_text"}, {"content", "预定会"}}}}},
           {"elements",
            nlohmann::json::array(
                {{{"tag", "div"}, {"text", {{"tag", "plain_text"}, {"content", body}}}},

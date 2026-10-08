@@ -1113,12 +1113,49 @@ void remove_empty_parent(const fs::path& person) {
     if (has_end && parsed.at("end").is_string()) {
         plan["end"] = parsed.at("end");
     }
+    const auto progress_word = [](std::string_view status) {
+        if (status == "todo") {
+            return std::string("未开始");
+        }
+        if (status == "doing") {
+            return std::string("进行中");
+        }
+        if (status == "done") {
+            return std::string("完成");
+        }
+        if (status == "blocked") {
+            return std::string("卡住");
+        }
+        return std::string("新进度");
+    };
+    std::string notice = "改进度：";
+    if (item->contains("标题") && item->at("标题").is_string() &&
+        !item->at("标题").get_ref<const std::string&>().empty()) {
+        notice += item->at("标题").get<std::string>();
+    } else {
+        notice += "这项";
+    }
+    if (plan.contains("status") && plan.at("status").is_string()) {
+        notice += "改为" + progress_word(plan.at("status").get_ref<const std::string&>());
+    }
+    const bool has_new_start = plan.contains("start") && plan.at("start").is_string();
+    const bool has_new_end = plan.contains("end") && plan.at("end").is_string();
+    if (has_new_start) {
+        notice += "开始改为" + plan.at("start").get<std::string>();
+    }
+    if (has_new_end) {
+        if (has_new_start) {
+            notice += "，";
+        }
+        notice += "结束改为" + plan.at("end").get<std::string>();
+    }
+    notice += "。点确认才写入";
     const std::expected<void, Error> begun = begin_plan(session, open_id, message_id, plan);
     if (!begun) {
         return std::unexpected(begun.error());
     }
     const std::expected<void, Error> sent = send_message(
-            session, json{{"text", "请确认"}, {"buttons", json::array({"确认", "取消"})}, {"open_id", open_id}});
+            session, json{{"text", notice}, {"buttons", json::array({"确认", "取消"})}, {"open_id", open_id}});
     if (!sent) {
         return std::unexpected(sent.error());
     }
@@ -1147,12 +1184,18 @@ void remove_empty_parent(const fs::path& person) {
                  {"start", parsed.value("start", "")},
                  {"end", parsed.value("end", "")},
                  {"title", parsed.value("title", item->value("标题", ""))}};
+    std::string title = plan.value("title", "");
+    if (title.empty()) {
+        title = "这场";
+    }
+    const std::string notice = "预定会：" + title + " " + plan.value("start", "") + " 至 " + plan.value("end", "") +
+                               "。点确认才订上";
     const std::expected<void, Error> begun = begin_plan(session, open_id, message_id, std::move(plan));
     if (!begun) {
         return std::unexpected(begun.error());
     }
     const std::expected<void, Error> sent = send_message(
-            session, json{{"text", "请确认预定"}, {"buttons", json::array({"确认", "取消"})}});
+            session, json{{"text", notice}, {"buttons", json::array({"确认", "取消"})}});
     if (!sent) {
         return std::unexpected(sent.error());
     }
@@ -1251,7 +1294,7 @@ void remove_empty_parent(const fs::path& person) {
             return std::unexpected(begun.error());
         }
         const std::expected<void, Error> sent =
-                send_message(session, json{{"text", "请确认职责"}, {"buttons", json::array({"确认", "取消"})}});
+                send_message(session, json{{"text", "记职责，点确认才记下"}, {"buttons", json::array({"确认", "取消"})}});
         if (!sent) {
             return std::unexpected(sent.error());
         }
@@ -1259,7 +1302,7 @@ void remove_empty_parent(const fs::path& person) {
     }
     if (count_open(session.config.data_root) >= kOpenLimit) {
         const std::expected<void, Error> sent =
-                send_message(session, json{{"text", "已经有 5 人在进行，请稍后再试"}});
+                send_message(session, json{{"text", "现在人满了，请稍后再试"}});
         if (!sent) {
             return std::unexpected(sent.error());
         }
@@ -1608,7 +1651,7 @@ void remove_empty_parent(const fs::path& person) {
                                       : "";
     const std::expected<void, Error> sent = send_message(
             session,
-            json{{"text", "AI推荐会议时间为" + when + "（北京时间）"},
+            json{{"text", "开会时间 " + when + "，北京时间"},
                  {"buttons", json::array({"同意", "先不办"})},
                  {"mentions", mentions}});
     if (!sent) {

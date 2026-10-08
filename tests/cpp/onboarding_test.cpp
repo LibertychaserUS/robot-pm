@@ -125,7 +125,7 @@ TEST_CASE("onboarding.bot_added_uses_identity_and_onboarding") {
     CHECK(result->mention_open_ids.empty());
     CHECK(result->text.find("<at") == std::string::npos);
     CHECK(result->text.find("@所有人") == std::string::npos);
-    CHECK(result->text.find("请各自 @ 我，用一句话阐述你的职责。") != std::string::npos);
+    CHECK(result->text.find("请各自 @ 我，用一句话说明你的职责。") != std::string::npos);
     CHECK(model.last.system_prompt == "identity\nonboarding\n");
     CHECK(model.last.user_message.find(model.stdout_text) == std::string::npos);
 }
