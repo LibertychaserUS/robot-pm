@@ -996,7 +996,13 @@ def main(argv=None):
         add_help=False,
     )
     parser.add_argument("-h", "--帮助", action="help", help="显示这些说明")
-    parser.add_argument("--目录", dest="data_root", default=None, help="数据放在这个目录")
+    parser.add_argument(
+        "--目录",
+        dest="data_root",
+        default=None,
+        metavar="路径",
+        help="数据放在这个目录",
+    )
     parser.add_argument(
         "--占着",
         dest="hold",
