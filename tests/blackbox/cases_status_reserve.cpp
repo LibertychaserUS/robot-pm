@@ -100,6 +100,46 @@ BB_TEST_CASE("status.title_date_predecessor_and_role_are_rejected") {
     CHECK(fixture.bitable.records[0].at("职责") == "接口");
 }
 
+BB_TEST_CASE("status.impossible_month_is_not_written") {
+    // 失败：月份不在 1 到 12 的日期被写进结束，或确认前先改了表。
+    Fixture fixture;
+    seed(fixture);
+    fixture.bitable.records[0]["node"] = "flexible";
+    fixture.model.response =
+            json{{"action", "update"}, {"item_id", "w1"}, {"end", "2026-13-01"}}.dump();
+    auto result = fixture.app->handle_event(
+            group_message("ou_owner", "把 w1 的结束改到 2026-13-01", true, "m1"));
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == robot_pm::ErrorCode::kEditRejected);
+    CHECK(fixture.bitable.records[0].at("结束") == "2026-10-03");
+    CHECK(fixture.bitable.upsert_calls == 0);
+    CHECK_FALSE(fs::exists(interaction_dir(fixture, "ou_owner", "m1")));
+    expect_ok(fixture.app->handle_event(json{
+            {"kind", "card_callback"},
+            {"action", "确认"},
+            {"open_id", "ou_owner"},
+            {"interaction_id", "m1"},
+            {"mentions_bot", false}}));
+    CHECK(fixture.bitable.records[0].at("结束") == "2026-10-03");
+    CHECK(fixture.feishu.events.empty());
+}
+
+BB_TEST_CASE("status.flexible_end_before_start_is_not_written") {
+    // 失败：小节点上结束早于开始的日期进入计划或写进表。
+    Fixture fixture;
+    seed(fixture);
+    fixture.bitable.records[0]["node"] = "flexible";
+    fixture.model.response =
+            json{{"action", "update"}, {"item_id", "w1"}, {"end", "2026-09-01"}}.dump();
+    auto result = fixture.app->handle_event(
+            group_message("ou_owner", "把 w1 的结束改到 2026-09-01", true, "m1"));
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == robot_pm::ErrorCode::kEditRejected);
+    CHECK(fixture.bitable.records[0].at("结束") == "2026-10-03");
+    CHECK(fixture.bitable.upsert_calls == 0);
+    CHECK_FALSE(fs::exists(interaction_dir(fixture, "ou_owner", "m1")));
+}
+
 BB_TEST_CASE("status.unknown_item_id_is_rejected") {
     Fixture fixture;
     seed(fixture);
