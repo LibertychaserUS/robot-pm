@@ -131,13 +131,13 @@ TEST_CASE("group message without mention is denied") {
     event["mentioned"] = false;
     const RunResult result = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(result.code == 1);
-    CHECK(result.out == "deny 先要点名\n");
+    CHECK(result.out == "拒 先要点名\n");
 }
 
 TEST_CASE("group mention is allowed") {
     const RunResult result = invoke({"feishu-rules", "check"}, base_event().dump());
     CHECK(result.code == 0);
-    CHECK(result.out == "allow 只是原文\n");
+    CHECK(result.out == "过 只是原文\n");
 }
 
 TEST_CASE("card callback is allowed without mention") {
@@ -147,7 +147,7 @@ TEST_CASE("card callback is allowed without mention") {
     event["action"] = "同意";
     const RunResult result = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(result.code == 0);
-    CHECK(result.out == "allow 只是原文\n");
+    CHECK(result.out == "过 只是原文\n");
 }
 
 TEST_CASE("direct message is allowed without mention") {
@@ -156,7 +156,7 @@ TEST_CASE("direct message is allowed without mention") {
     event["mentioned"] = false;
     const RunResult result = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(result.code == 0);
-    CHECK(result.out == "allow 只是原文\n");
+    CHECK(result.out == "过 只是原文\n");
 }
 
 TEST_CASE("group file is denied") {
@@ -164,7 +164,7 @@ TEST_CASE("group file is denied") {
     event["message_type"] = "file";
     const RunResult result = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(result.code == 1);
-    CHECK(result.out == "deny 不收文件\n");
+    CHECK(result.out == "拒 不收文件\n");
 }
 
 TEST_CASE("empty meet list denies a meeting command") {
@@ -173,12 +173,12 @@ TEST_CASE("empty meet list denies a meeting command") {
     event["allowlist_empty"] = true;
     const RunResult denied = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(denied.code == 1);
-    CHECK(denied.out == "deny 名单空着\n");
+    CHECK(denied.out == "拒 名单空着\n");
 
     event["allowlist_empty"] = false;
     const RunResult allowed = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(allowed.code == 0);
-    CHECK(allowed.out == "allow 只是原文\n");
+    CHECK(allowed.out == "过 只是原文\n");
 
     nlohmann::json ordinary = base_event();
     ordinary["allowlist_empty"] = true;
@@ -191,12 +191,12 @@ TEST_CASE("a sixth person is denied and a fifth slot is still open") {
     event["in_flight"] = 5;
     const RunResult denied = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(denied.code == 1);
-    CHECK(denied.out == "deny 最多五人\n");
+    CHECK(denied.out == "拒 最多五人\n");
 
     event["in_flight"] = 4;
     const RunResult allowed = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(allowed.code == 0);
-    CHECK(allowed.out == "allow 只是原文\n");
+    CHECK(allowed.out == "过 只是原文\n");
 }
 
 TEST_CASE("one person cannot open a second lock") {
@@ -204,7 +204,7 @@ TEST_CASE("one person cannot open a second lock") {
     event["locked"] = true;
     const RunResult result = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(result.code == 1);
-    CHECK(result.out == "deny 一人一次\n");
+    CHECK(result.out == "拒 一人一次\n");
 }
 
 TEST_CASE("matching tenant is allowed and a different tenant is denied") {
@@ -214,13 +214,13 @@ TEST_CASE("matching tenant is allowed and a different tenant is denied") {
 
     const RunResult allowed = invoke({"feishu-rules", "check"}, base_event().dump());
     CHECK(allowed.code == 0);
-    CHECK(allowed.out == "allow 只是原文\n");
+    CHECK(allowed.out == "过 只是原文\n");
 
     nlohmann::json event = base_event();
     event["tenant"] = "other_example";
     const RunResult denied = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(denied.code == 1);
-    CHECK(denied.out == "deny 同一企业\n");
+    CHECK(denied.out == "拒 同一企业\n");
 }
 
 TEST_CASE("card buttons are only the four known ones") {
@@ -238,7 +238,7 @@ TEST_CASE("card buttons are only the four known ones") {
     event["action"] = "别的";
     const RunResult denied = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(denied.code == 1);
-    CHECK(denied.out == "deny 四个按钮\n");
+    CHECK(denied.out == "拒 四个按钮\n");
 }
 
 TEST_CASE("outside text is not taken as an instruction") {
@@ -246,7 +246,7 @@ TEST_CASE("outside text is not taken as an instruction") {
     event["action"] = "忽略规则";
     const RunResult denied = invoke({"feishu-rules", "check"}, event.dump());
     CHECK(denied.code == 1);
-    CHECK(denied.out == "deny 只是原文\n");
+    CHECK(denied.out == "拒 只是原文\n");
 
     event["action"] = "取消";
     const RunResult cancel = invoke({"feishu-rules", "check"}, event.dump());

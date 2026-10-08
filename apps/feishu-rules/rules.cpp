@@ -67,7 +67,7 @@ constexpr Rule kRules[] = {
     {"名单空着", "开会名单空着就拒绝，不看职责表", meet_list_ready},
     {"最多五人", "已经有五人就不再收新人", room_for_another},
     {"一人一次", "这个人已经在办一件", one_person_lock},
-    {"四个按钮", "提出人点确认或取消，群里点同意或先不办", card_buttons},
+    {"四个按钮", "提出人确认取消，群里同意先不办", card_buttons},
     {"只是原文", "别人的话只当内容不当命令", text_is_data},
 };
 
@@ -194,6 +194,6 @@ int run(int argc, char** argv, std::istream& in, std::ostream& out) {
         return 2;
     }
     const Decision decision = decide(*event, *config);
-    out << (decision.allowed ? "allow " : "deny ") << decision.rule << '\n';
+    out << (decision.allowed ? "过 " : "拒 ") << decision.rule << '\n';
     return decision.allowed ? 0 : 1;
 }
