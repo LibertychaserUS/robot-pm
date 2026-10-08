@@ -49,6 +49,6 @@ python3 -m venv .venv
 
 ## 部署前检查
 
-持久化目录用一个 Cython 探针准备。它先检查主机，通过之后才建目录。检查失败就停，不留下半棵目录。它不启动 `robot-pm`，也不连接飞书。`apps/robot-pm/main.cpp` 目前只打印 `robot-pm`。
+持久化目录用一个 Cython 探针准备。它先检查主机，通过之后才建目录。检查失败就停，不留下半棵目录。它不启动 `robot-pm`，也不连接飞书。`robot-pm` 自己启动后一直处理飞书事件。缺了配置就逐行列出名字并退出。
 
 编译和运行见 [docs/deploy.md](docs/deploy.md)。

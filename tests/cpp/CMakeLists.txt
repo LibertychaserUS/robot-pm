@@ -9,7 +9,8 @@ add_executable(robot_pm_unit_tests
     scenario_confirm_test.cpp
     scenario_import_reserve_test.cpp
     scenario_chains_test.cpp
-    arrange_test.cpp)
+    arrange_test.cpp
+    service_test.cpp)
 target_link_libraries(robot_pm_unit_tests PRIVATE robot_pm_core doctest::doctest)
 target_compile_definitions(robot_pm_unit_tests PRIVATE
     ROBOT_PM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
