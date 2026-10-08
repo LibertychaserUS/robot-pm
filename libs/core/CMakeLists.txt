@@ -12,7 +12,10 @@ add_library(robot_pm_core
     src/status_update.cpp
     src/meeting_plan.cpp
     src/reserve.cpp
-    src/app.cpp)
+    src/app.cpp
+    src/decide.cpp
+    src/act.cpp
+    src/arrange.cpp)
 target_include_directories(robot_pm_core PUBLIC include)
 target_link_libraries(robot_pm_core PUBLIC nlohmann_json::nlohmann_json)
 robot_pm_set_warnings(robot_pm_core)
