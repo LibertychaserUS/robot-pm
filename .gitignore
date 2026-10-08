@@ -12,3 +12,6 @@ build/
 *.egg-info/
 /build/
 /var/
+src/robot_pm/deploy.c
+src/robot_pm/*.so
+*.so

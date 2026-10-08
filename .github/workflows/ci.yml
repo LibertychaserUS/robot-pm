@@ -51,3 +51,22 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install -e ".[dev]"
           .venv/bin/pytest
+
+      - name: Prepare data directory when credentials exist
+        run: |
+          set -euo pipefail
+          required=(
+            FEISHU_APP_ID
+            FEISHU_APP_SECRET
+            FEISHU_ENCRYPT_KEY
+            FEISHU_VERIFICATION_TOKEN
+            FEISHU_BITABLE_APP_TOKEN
+            FEISHU_BITABLE_TABLE_ID
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "skip host prepare: ${name} is not set"
+              exit 0
+            fi
+          done
+          .venv/bin/robot-pm-deploy --data-root "${RUNNER_TEMP:-/tmp}/robot_pm"
