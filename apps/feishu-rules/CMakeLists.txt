@@ -1,0 +1,21 @@
+add_library(feishu_rules STATIC rules.cpp)
+target_include_directories(feishu_rules PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(feishu_rules PRIVATE
+    ROBOT_PM_TENANT_PLACEHOLDER_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tenant_placeholder.txt")
+target_link_libraries(feishu_rules PUBLIC nlohmann_json::nlohmann_json)
+robot_pm_set_warnings(feishu_rules)
+robot_pm_enable_sanitizers(feishu_rules)
+
+add_executable(feishu-rules main.cpp)
+target_link_libraries(feishu-rules PRIVATE feishu_rules)
+robot_pm_set_warnings(feishu-rules)
+robot_pm_enable_sanitizers(feishu-rules)
+
+if(BUILD_TESTING)
+    add_executable(feishu_rules_tests rules_test.cpp)
+    target_link_libraries(feishu_rules_tests PRIVATE feishu_rules doctest::doctest)
+    robot_pm_set_warnings(feishu_rules_tests)
+    robot_pm_enable_sanitizers(feishu_rules_tests)
+    add_test(NAME feishu_rules COMMAND feishu_rules_tests)
+    set_tests_properties(feishu_rules PROPERTIES LABELS "regression")
+endif()
