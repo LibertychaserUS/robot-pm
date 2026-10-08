@@ -69,4 +69,4 @@ jobs:
               exit 0
             fi
           done
-          .venv/bin/robot-pm-deploy --data-root "${RUNNER_TEMP:-/tmp}/robot_pm"
+          .venv/bin/robot-pm-deploy --目录 "${RUNNER_TEMP:-/tmp}/robot_pm"

@@ -71,8 +71,11 @@ namespace {
 [[nodiscard]] bool text_asks_for_role(std::string_view text) {
     return text.find("填写职责") != std::string_view::npos ||
            text.find("收集卡片") != std::string_view::npos ||
+           text.find("记职责") != std::string_view::npos ||
            text.find("阐述你的职责") != std::string_view::npos ||
            text.find("阐述自己的职责") != std::string_view::npos ||
+           text.find("说明你的职责") != std::string_view::npos ||
+           text.find("说明自己的职责") != std::string_view::npos ||
            text.find("一句话") != std::string_view::npos;
 }
 
@@ -152,7 +155,7 @@ namespace {
     actions.push_back(nlohmann::json{
         {"tag", "button"}, {"text", std::move(cancel_text)}, {"value", {{"action", "取消"}}}});
     nlohmann::json card = {
-        {"header", {{"title", {{"tag", "plain_text"}, {"content", "确认职责"}}}}},
+        {"header", {{"title", {{"tag", "plain_text"}, {"content", "记职责"}}}}},
         {"elements",
          nlohmann::json::array(
              {nlohmann::json{{"tag", "div"},
@@ -240,7 +243,7 @@ std::expected<OnboardingResult, Error> run_onboarding(const nlohmann::json& even
         result.mention_open_ids.clear();
         result.text = greeting;
         if (result.text.find("一句话") == std::string::npos) {
-            result.text.append("\n请各自 @ 我，用一句话阐述你的职责。");
+            result.text.append("\n请各自 @ 我，用一句话说明你的职责。");
         }
         return result;
     }
@@ -251,7 +254,7 @@ std::expected<OnboardingResult, Error> run_onboarding(const nlohmann::json& even
     result.mention_open_ids = joiners;
     result.text = "<at user_id=\"" + joiners.front() + "\"></at> " + greeting;
     if (greeting.find("一句话") == std::string::npos) {
-        result.text.append("\n请 @ 我，用一句话阐述你的职责。");
+        result.text.append("\n请 @ 我，用一句话说明你的职责。");
     }
     return result;
 }

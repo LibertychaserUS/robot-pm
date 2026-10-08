@@ -419,7 +419,7 @@ def test_cli_dry_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: py
         encoding="utf-8",
     )
 
-    assert main(["apply", str(edit), "--dry-run"]) == 0
+    assert main(["写入", str(edit), "--只检查"]) == 0
     captured = capsys.readouterr()
     assert '"dry_run": true' in captured.out
     assert APP_SECRET not in captured.out

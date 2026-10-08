@@ -2,7 +2,7 @@
 
 // 这个文件负责回答群成员的一句话。
 // 不变量：系统提示只是 member_reply.md 原文；用户消息包在 untrusted_input 里；不建会，不写表。
-// 规格：prompts/member_reply.md，docs/user-manual.md 的「平时可以问什么」。
+// 规格：prompts/member_reply.md，docs/user-manual.md 的「能问什么」。
 
 #include "robot_pm/error.hpp"
 #include "robot_pm/model_act.hpp"

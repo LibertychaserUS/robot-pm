@@ -192,7 +192,7 @@ def test_prepare_creates_the_tree_and_a_second_process_cannot_share_it(tmp_path)
     code = (
         "import sys\n"
         "from robot_pm.deploy import main\n"
-        "sys.exit(main(['--data-root', sys.argv[1], '--hold']))\n"
+        "sys.exit(main(['--目录', sys.argv[1], '--占着']))\n"
     )
     first = subprocess.Popen(
         [sys.executable, "-c", code, str(root)],
@@ -226,7 +226,7 @@ def test_prepare_creates_the_tree_and_a_second_process_cannot_share_it(tmp_path)
     assert stat.S_IMODE(root.stat().st_mode) == 0o700
     before = sorted(path.name for path in root.iterdir())
     second = subprocess.run(
-        [sys.executable, "-c", "import sys\nfrom robot_pm.deploy import main\nsys.exit(main(['--data-root', sys.argv[1]]))", str(root)],
+        [sys.executable, "-c", "import sys\nfrom robot_pm.deploy import main\nsys.exit(main(['--目录', sys.argv[1]]))", str(root)],
         env=env,
         capture_output=True,
         text=True,

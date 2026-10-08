@@ -2,7 +2,7 @@
 
 // 这个文件负责确认后预定一场会，时间用北京时间。
 // 不变量：确认前不调用日历；日历 id 为空时改用主日历；表没写上就删掉已创建的日程。
-// 规格：prompts/meeting_reserve.md，docs/user-manual.md 的「预定一场会」。
+// 规格：prompts/meeting_reserve.md，docs/user-manual.md 的「预定会」。
 
 #include "robot_pm/error.hpp"
 #include "robot_pm/model_act.hpp"

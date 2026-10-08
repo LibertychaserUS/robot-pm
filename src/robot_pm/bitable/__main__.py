@@ -1,6 +1,6 @@
 """Command line for the Bitable editor.
 
-    python -m robot_pm.bitable apply path/to/edit.json --dry-run
+    python -m robot_pm.bitable 写入 path/to/edit.json --只检查
 """
 
 from __future__ import annotations
@@ -16,14 +16,21 @@ from robot_pm.bitable.errors import EditFailed, BitableError
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m robot_pm.bitable")
+    parser = argparse.ArgumentParser(
+        prog="python -m robot_pm.bitable",
+        description="按文件改表格。",
+        add_help=False,
+    )
+    parser.add_argument("-h", "--帮助", action="help", help="显示这些说明")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    apply_parser = subcommands.add_parser("apply", help="按编辑文件写入多维表格")
-    apply_parser.add_argument("edit_file", help="编辑 JSON 的路径")
+    apply_parser = subcommands.add_parser("写入", help="按文件改表格", add_help=False)
+    apply_parser.add_argument("-h", "--帮助", action="help", help="显示这些说明")
+    apply_parser.add_argument("edit_file", metavar="文件", help="要改的文件")
     apply_parser.add_argument(
-        "--dry-run",
+        "--只检查",
+        dest="dry_run",
         action="store_true",
-        help="只做校验和查询，不调用新增、更新、删除",
+        help="只检查，不改表格",
     )
     args = parser.parse_args(argv)
     try:

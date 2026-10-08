@@ -56,7 +56,7 @@ BB_TEST_CASE("delivery.hold_does_not_create_a_calendar_event") {
     CHECK(fixture.feishu.events.empty());
     REQUIRE_FALSE(fixture.feishu.sent.empty());
     const auto card = fixture.feishu.sent.back().dump();
-    CHECK(card.find("AI推荐会议时间为2026-10-01 10:00（北京时间）") != std::string::npos);
+    CHECK(card.find("开会时间 2026-10-01 10:00，北京时间") != std::string::npos);
     CHECK(card.find("同意") != std::string::npos);
     CHECK(card.find("先不办") != std::string::npos);
     CHECK(card.find("ou_owner") != std::string::npos);
