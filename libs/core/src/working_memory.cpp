@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace robot_pm {
 namespace {
@@ -202,28 +203,55 @@ std::expected<void, Error> end_interaction(const std::filesystem::path& memory_r
     return {};
 }
 
-std::expected<void, Error> recover_finished_interactions(const std::filesystem::path& memory_root) {
+std::expected<std::string, Error> read_recovery_log(const std::filesystem::path& memory_root) {
     const std::filesystem::path events = memory_root / "episodic" / "events.jsonl";
     std::error_code error;
     if (!std::filesystem::is_regular_file(events, error) || error) {
-        return {};
+        return std::string{};
     }
     std::ifstream input(events);
+    if (!input) {
+        return std::unexpected(Error{ErrorCode::kEditRejected, "日志读不完"});
+    }
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    if (input.bad()) {
+        return std::unexpected(Error{ErrorCode::kEditRejected, "日志读不完"});
+    }
+    return buffer.str();
+}
+
+std::expected<void, Error> apply_recovery(const std::filesystem::path& memory_root,
+                                          std::string_view log) {
+    std::vector<nlohmann::json> tombstones;
     std::string line;
+    std::istringstream input{std::string{log}};
     while (std::getline(input, line)) {
         if (line.empty()) {
             continue;
         }
-        const nlohmann::json parsed = nlohmann::json::parse(line, nullptr, false);
+        nlohmann::json parsed = nlohmann::json::parse(line, nullptr, false);
         if (parsed.is_discarded() || !is_tombstone(parsed)) {
             continue;
         }
-        const std::expected<void, Error> deleted = delete_tombstoned_directory(memory_root, parsed);
+        tombstones.push_back(std::move(parsed));
+    }
+    for (const nlohmann::json& tombstone : tombstones) {
+        const std::expected<void, Error> deleted =
+            delete_tombstoned_directory(memory_root, tombstone);
         if (!deleted.has_value()) {
             return std::unexpected(deleted.error());
         }
     }
     return {};
+}
+
+std::expected<void, Error> recover_finished_interactions(const std::filesystem::path& memory_root) {
+    const std::expected<std::string, Error> log = read_recovery_log(memory_root);
+    if (!log.has_value()) {
+        return std::unexpected(log.error());
+    }
+    return apply_recovery(memory_root, *log);
 }
 
 }  // namespace robot_pm

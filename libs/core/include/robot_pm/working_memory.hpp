@@ -38,8 +38,18 @@ namespace robot_pm {
                                                         std::string_view outcome,
                                                         std::chrono::system_clock::time_point now);
 
-// 前置条件：episodic/events.jsonl 里已有墓碑。重启后目录如果还在，就删掉。
-// 失败：kEditRejected，删不掉。不改已有的墓碑行。
+// 前置条件：日志可以还不存在。只读，不写目录，不发回执。
+// 失败：kEditRejected，日志没读完。
+[[nodiscard]] std::expected<std::string, Error> read_recovery_log(
+    const std::filesystem::path& memory_root);
+
+// 前置条件：log 是 read_recovery_log 读完的全文。先读完，再删残留目录。
+// 失败：kEditRejected，残留目录删不掉。不改日志原文，不发回执。
+[[nodiscard]] std::expected<void, Error> apply_recovery(const std::filesystem::path& memory_root,
+                                                       std::string_view log);
+
+// 前置条件：先把 episodic/events.jsonl 读完，再删墓碑还在的目录。
+// 失败：kEditRejected。不改已有的墓碑行，不发回执。
 [[nodiscard]] std::expected<void, Error> recover_finished_interactions(
     const std::filesystem::path& memory_root);
 
