@@ -25,11 +25,13 @@ public:
 
     std::optional<FeishuRequest> take(std::stop_token stop) override;
     void reply(std::string_view body) override;
+    [[nodiscard]] bool failed() const override;
 
 private:
     int listen_fd_ = -1;
     int client_fd_ = -1;
     std::uint16_t bound_port_ = 0;
+    bool failed_ = false;
     std::string failure_;
 };
 

@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -68,6 +69,26 @@ TEST_CASE("listen reads one feishu request and answers it") {
     CHECK(received.find(answer) != std::string::npos);
     CHECK(received.find("secret") == std::string::npos);
     ::close(client);
+}
+
+TEST_CASE("listen ignores a closed body that is still short of content length") {
+    robot_pm::HttpEventPort port(0);
+    REQUIRE(port.ok());
+    std::stop_source source;
+    std::optional<robot_pm::FeishuRequest> got{robot_pm::FeishuRequest{}};
+    std::thread worker([&] { got = port.take(source.get_token()); });
+    const std::string json_prefix = "{\"ok\":true}";
+    const std::string request = "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: " +
+                                std::to_string(json_prefix.size() + 8) + "\r\n\r\n" + json_prefix;
+    const int client = connect_to(port.bound_port());
+    REQUIRE(client >= 0);
+    REQUIRE(::send(client, request.data(), request.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(request.size()));
+    ::close(client);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    source.request_stop();
+    worker.join();
+    CHECK_FALSE(got.has_value());
+    CHECK_FALSE(port.failed());
 }
 
 TEST_CASE("listen returns when stopped") {

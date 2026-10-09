@@ -79,6 +79,7 @@ struct Config {
     std::string app_id;
     std::string app_secret;
     std::string bitable_app_token;
+    std::string bitable_table_id;
     std::vector<std::string> chase_allowlist;
     std::vector<std::string> meet_allowlist;
     std::string template_name;

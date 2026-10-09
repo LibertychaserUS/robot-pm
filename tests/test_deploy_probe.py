@@ -50,6 +50,7 @@ def probe_env(**overrides):
         "FEISHU_VERIFICATION_TOKEN": "example_verification_token",
         "FEISHU_BITABLE_APP_TOKEN": "example_bitable_app_token",
         "FEISHU_BITABLE_TABLE_ID": "tbl_example",
+        "FEISHU_BOT_OPEN_ID": "ou_bot",
     }
     env.update(overrides)
     return env
@@ -242,6 +243,22 @@ def test_prepare_creates_the_tree_and_a_second_process_cannot_share_it(tmp_path)
     assert SECRET not in err
     again = prepare(root, environ=env)
     again.release()
+
+
+def test_record_group_form_writes_one_row_and_rejects_a_mismatch(tmp_path):
+    from robot_pm.deploy import record_group_form
+
+    root = tmp_path / "robot_pm"
+    root.mkdir()
+    record_group_form(root, "oc_group", "普通群", actual="group")
+    text = (root / "group-forms.jsonl").read_text(encoding="utf-8")
+    assert '"群标识":"oc_group"' in text
+    assert '"形式":"普通群"' in text
+    with pytest.raises(DeployError) as caught:
+        record_group_form(root, "oc_group", "普通群", actual="topic")
+    assert caught.value.kind == "form"
+    with pytest.raises(DeployError):
+        record_group_form(root, "oc_group", "别的群")
 
 
 def test_usable_space_reports_bavail_separately_from_bfree(tmp_path):

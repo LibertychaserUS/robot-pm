@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install GCC 14
-        run: sudo apt-get update && sudo apt-get install -y g++-14
+        run: sudo apt-get update && sudo apt-get install -y g++-14 libssl-dev
 
       - name: Configure Debug with ASan and UBSan
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++-14
@@ -62,6 +62,7 @@ jobs:
             FEISHU_VERIFICATION_TOKEN
             FEISHU_BITABLE_APP_TOKEN
             FEISHU_BITABLE_TABLE_ID
+            FEISHU_BOT_OPEN_ID
           )
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then

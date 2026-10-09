@@ -1,6 +1,8 @@
 #include "robot_pm/service.hpp"
 
 #include "robot_pm/audit.hpp"
+#include "robot_pm/durable.hpp"
+#include "robot_pm/writer_lock.hpp"
 
 #include <fstream>
 #include <utility>
@@ -53,6 +55,9 @@ static_assert(pure_chinese("应用编号") && chinese_len("应用编号") >= 2 &
 static_assert(pure_chinese("应用密钥") && chinese_len("应用密钥") >= 2 && chinese_len("应用密钥") <= 4);
 static_assert(pure_chinese("加密密钥") && chinese_len("加密密钥") >= 2 && chinese_len("加密密钥") <= 4);
 static_assert(pure_chinese("校验口令") && chinese_len("校验口令") >= 2 && chinese_len("校验口令") <= 4);
+static_assert(pure_chinese("多维表") && chinese_len("多维表") >= 2 && chinese_len("多维表") <= 4);
+static_assert(pure_chinese("数据表") && chinese_len("数据表") >= 2 && chinese_len("数据表") <= 4);
+static_assert(pure_chinese("机器人") && chinese_len("机器人") >= 2 && chinese_len("机器人") <= 4);
 static_assert(pure_chinese("形式没记") && chinese_len("形式没记") == 4);
 static_assert(pure_chinese("形式不符") && chinese_len("形式不符") == 4);
 
@@ -66,11 +71,35 @@ constexpr SettingName kRequired[] = {
         {"FEISHU_APP_SECRET", "应用密钥"},
         {"FEISHU_ENCRYPT_KEY", "加密密钥"},
         {"FEISHU_VERIFICATION_TOKEN", "校验口令"},
+        {"FEISHU_BITABLE_APP_TOKEN", "多维表"},
+        {"FEISHU_BITABLE_TABLE_ID", "数据表"},
+        {"FEISHU_BOT_OPEN_ID", "机器人"},
 };
 
-[[nodiscard]] bool blank_setting(const std::map<std::string, std::string>& env, const char* key) {
+[[nodiscard]] std::string trimmed_setting(std::string_view text) {
+    std::size_t begin = 0;
+    while (begin < text.size() &&
+           (text[begin] == ' ' || text[begin] == '\t' || text[begin] == '\n' || text[begin] == '\r')) {
+        ++begin;
+    }
+    std::size_t end = text.size();
+    while (end > begin && (text[end - 1] == ' ' || text[end - 1] == '\t' || text[end - 1] == '\n' ||
+                           text[end - 1] == '\r')) {
+        --end;
+    }
+    return std::string(text.substr(begin, end - begin));
+}
+
+[[nodiscard]] std::string setting_value(const std::map<std::string, std::string>& env, const char* key) {
     const auto found = env.find(key);
-    return found == env.end() || found->second.empty();
+    if (found == env.end()) {
+        return {};
+    }
+    return trimmed_setting(found->second);
+}
+
+[[nodiscard]] bool blank_setting(const std::map<std::string, std::string>& env, const char* key) {
+    return setting_value(env, key).empty();
 }
 
 [[nodiscard]] bool open_id_text(std::string_view text) {
@@ -352,14 +381,6 @@ constexpr SettingName kRequired[] = {
     return std::nullopt;
 }
 
-[[nodiscard]] std::string env_or_empty(const std::map<std::string, std::string>& env, const char* key) {
-    const auto found = env.find(key);
-    if (found == env.end()) {
-        return {};
-    }
-    return found->second;
-}
-
 class ShapingFeishu final : public FeishuPort {
 public:
     ShapingFeishu(FeishuPort& inner, std::string base_url, std::filesystem::path data_root)
@@ -440,7 +461,15 @@ CardDispatch present_feishu_cards(const json& message, std::string_view recorded
         dispatch.notice = "形式没记";
         return dispatch;
     }
-    const DeliveryRow* row = find_delivery(recorded_form, message.value("chat_mode", ""));
+    std::string actual = message.value("chat_mode", "");
+    if (actual.empty()) {
+        if (recorded_form == "普通群") {
+            actual = "group";
+        } else if (recorded_form == "话题群") {
+            actual = "topic";
+        }
+    }
+    const DeliveryRow* row = find_delivery(recorded_form, actual);
     if (row == nullptr) {
         dispatch.notice = "形式不符";
         return dispatch;
@@ -490,19 +519,23 @@ CardDispatch present_feishu_cards(const json& message, std::string_view recorded
     return dispatch;
 }
 
+int missing_runtime_settings(const std::map<std::string, std::string>& env, std::ostream& out) {
+    bool missing = false;
+    for (const SettingName& setting : kRequired) {
+        if (blank_setting(env, setting.key)) {
+            out << setting.name << ' ' << setting.key << '\n';
+            missing = true;
+        }
+    }
+    return missing ? 1 : 0;
+}
+
 int serve(const std::map<std::string, std::string>& env,
           const ServeDeps& deps,
           ServicePaths paths,
           std::stop_token stop,
           std::ostream& out) {
-    bool missing = false;
-    for (const SettingName& setting : kRequired) {
-        if (blank_setting(env, setting.key)) {
-            out << setting.name << '\n';
-            missing = true;
-        }
-    }
-    if (missing) {
+    if (missing_runtime_settings(env, out) != 0) {
         return 1;
     }
     const std::expected<FeishuAccessConfig, Error> access = feishu_access_from_environ(env);
@@ -515,24 +548,56 @@ int serve(const std::map<std::string, std::string>& env,
     config.repo_root = paths.repo_root.empty() ? std::filesystem::current_path() : paths.repo_root;
     config.app_id = access->app_id;
     config.app_secret = access->app_secret;
-    config.bot_open_id = env_or_empty(env, "FEISHU_BOT_OPEN_ID");
-    config.group_id = env_or_empty(env, "FEISHU_GROUP_ID");
-    config.calendar_id = env_or_empty(env, "FEISHU_CALENDAR_ID");
-    config.timezone = env_or_empty(env, "ROBOT_PM_TIMEZONE");
+    config.bot_open_id = setting_value(env, "FEISHU_BOT_OPEN_ID");
+    config.group_id = setting_value(env, "FEISHU_GROUP_ID");
+    config.calendar_id = setting_value(env, "FEISHU_CALENDAR_ID");
+    config.bitable_app_token = setting_value(env, "FEISHU_BITABLE_APP_TOKEN");
+    config.bitable_table_id = setting_value(env, "FEISHU_BITABLE_TABLE_ID");
+    config.timezone = setting_value(env, "ROBOT_PM_TIMEZONE");
     if (config.timezone.empty()) {
         config.timezone = "Asia/Shanghai";
     }
 
-    ShapingFeishu shaping(deps.feishu, access->base_url, config.data_root);
+    const std::filesystem::path data_root = config.data_root;
+    ShapingFeishu shaping(deps.feishu, access->base_url, data_root);
     Ports ports{deps.model, shaping, deps.bitable, deps.process, deps.clock};
+    std::error_code directory_error;
+    std::filesystem::create_directories(data_root, directory_error);
+    WriterLock held = WriterLock::acquire(data_root);
+    if (!held) {
+        out << "写入锁被占\n";
+        return 1;
+    }
     App app(std::move(config), ports);
-    const std::string bot_open_id = env_or_empty(env, "FEISHU_BOT_OPEN_ID");
+    const std::string bot_open_id = setting_value(env, "FEISHU_BOT_OPEN_ID");
+    static_cast<void>(recover_durable_file(data_root / "episodic" / "decisions.jsonl"));
+
+    const auto inbox_pending = [&]() {
+        std::error_code error;
+        const std::filesystem::path inbox = data_root / "inbox";
+        if (!std::filesystem::is_directory(inbox, error) || error) {
+            return false;
+        }
+        for (std::filesystem::directory_iterator it(inbox, error); !error && it != std::filesystem::directory_iterator();
+             it.increment(error)) {
+            if (it->is_regular_file()) {
+                return true;
+            }
+        }
+        return false;
+    };
 
     while (!stop.stop_requested()) {
         static_cast<void>(deps.clock.now());
+        if (inbox_pending()) {
+            static_cast<void>(app.import_inbox());
+        }
         static_cast<void>(app.sweep());
         const std::optional<FeishuRequest> request = deps.events.take(stop);
         if (!request.has_value()) {
+            if (deps.events.failed()) {
+                return 1;
+            }
             break;
         }
         const std::expected<AccessDecision, Error> decision =

@@ -18,13 +18,15 @@ python3 -m venv .venv
 
 成功时打印目录路径和最低字节数。失败时原因写在标准错误上，退出码是 1。环境变量的值不会打印。
 
-`--占着` 会在目录就绪后一直占着写入锁，直到标准输入结束。用来确认第二个进程不能同时准备这棵树。它仍然不启动机器人。
+`--占着` 会在目录就绪后一直占着写入锁，直到标准输入结束。用来确认第二个进程不能同时准备这棵树。它仍然不启动机器人。`robot-pm` 自己跑起来以后也会占着同一把锁，直到进程结束。
+
+`--群` 和 `--形式` 一起写下一行。形式只有普通群或话题群。`--实际` 只在录入时核对，不在每条进来的消息上核对。没有这一行，决定仍然不送。
 
 ## 它检查什么
 
 按这个顺序。任何一步失败，目录树保持调用前的样子。
 
-1. 这些变量都有非空的值：`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_ENCRYPT_KEY`、`FEISHU_VERIFICATION_TOKEN`、`FEISHU_BITABLE_APP_TOKEN`、`FEISHU_BITABLE_TABLE_ID`。只检查在不在。
+1. 这些变量都有非空的值：`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_ENCRYPT_KEY`、`FEISHU_VERIFICATION_TOKEN`、`FEISHU_BITABLE_APP_TOKEN`、`FEISHU_BITABLE_TABLE_ID`、`FEISHU_BOT_OPEN_ID`。只检查在不在。两端空白算没有。
 2. 时钟能把现在换算成北京时间（`Asia/Shanghai`，东八区），并且年份落在 2026 到 2100 之间。30 分钟超时和截止日期都靠这个钟。
 3. 当前解释器和 `python3` 都是 3.11 或更高，`cmake` 至少 3.28，C++ 编译器是 GCC 14 或 Clang 18。
 4. 可用空间。见下一节。数字不够就停，不会先建目录。

@@ -1,5 +1,7 @@
 #include "listen.hpp"
 
+#include "robot_pm/frame.hpp"
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -17,26 +19,24 @@ namespace {
 
 volatile std::sig_atomic_t g_process_stop = 0;
 
-[[nodiscard]] std::string lower_ascii(std::string_view text) {
-    std::string copy(text);
-    for (char& character : copy) {
-        if (character >= 'A' && character <= 'Z') {
-            character = static_cast<char>(character - 'A' + 'a');
-        }
-    }
-    return copy;
-}
-
 [[nodiscard]] bool read_request(int fd, std::stop_token stop, FeishuRequest& request) {
     std::string incoming;
     incoming.reserve(4096);
-    std::string header;
-    std::string body;
-    bool header_done = false;
-    std::size_t content_length = 0;
+    bool peer_closed = false;
     while (!stop.stop_requested() && g_process_stop == 0) {
-        if (header_done && body.size() >= content_length) {
-            break;
+        const HttpFrame framed = read_http_frame(incoming, peer_closed);
+        if (framed.kind == FrameKind::kComplete) {
+            if (framed.body.size() > 1024U * 1024U) {
+                return false;
+            }
+            request.timestamp = framed.timestamp;
+            request.nonce = framed.nonce;
+            request.signature = framed.signature;
+            request.body = framed.body;
+            return true;
+        }
+        if (framed.kind == FrameKind::kAbsent || peer_closed) {
+            return false;
         }
         pollfd ready{};
         ready.fd = fd;
@@ -60,73 +60,15 @@ volatile std::sig_atomic_t g_process_stop = 0;
             return false;
         }
         if (got == 0) {
-            break;
+            peer_closed = true;
+            continue;
         }
         incoming.append(buffer, static_cast<std::size_t>(got));
-        if (!header_done) {
-            const std::size_t split = incoming.find("\r\n\r\n");
-            if (split == std::string::npos) {
-                if (incoming.size() > 65536U) {
-                    return false;
-                }
-                continue;
-            }
-            header = incoming.substr(0, split);
-            body = incoming.substr(split + 4);
-            header_done = true;
-            const std::string lowered = lower_ascii(header);
-            const std::string needle = "content-length:";
-            const std::size_t mark = lowered.find(needle);
-            if (mark != std::string::npos) {
-                std::size_t cursor = mark + needle.size();
-                while (cursor < header.size() && (header[cursor] == ' ' || header[cursor] == '\t')) {
-                    ++cursor;
-                }
-                while (cursor < header.size() && header[cursor] >= '0' && header[cursor] <= '9') {
-                    const std::size_t digit = static_cast<std::size_t>(header[cursor] - '0');
-                    if (content_length > (1024U * 1024U) / 10U) {
-                        return false;
-                    }
-                    content_length = content_length * 10U + digit;
-                    ++cursor;
-                }
-            }
-            if (content_length > 1024U * 1024U) {
-                return false;
-            }
-        } else {
-            body = incoming.substr(header.size() + 4);
-        }
-        if (body.size() >= content_length) {
-            body.resize(content_length);
-            break;
+        if (incoming.size() > 2U * 1024U * 1024U) {
+            return false;
         }
     }
-    if (!header_done) {
-        return false;
-    }
-    const auto header_value = [&](const char* name) -> std::string {
-        const std::string needle = std::string(name) + ":";
-        const std::string lowered = lower_ascii(header);
-        const std::size_t mark = lowered.find(needle);
-        if (mark == std::string::npos) {
-            return {};
-        }
-        std::size_t cursor = mark + needle.size();
-        while (cursor < header.size() && (header[cursor] == ' ' || header[cursor] == '\t')) {
-            ++cursor;
-        }
-        const std::size_t end = header.find("\r\n", cursor);
-        if (end == std::string::npos) {
-            return header.substr(cursor);
-        }
-        return header.substr(cursor, end - cursor);
-    };
-    request.timestamp = header_value("x-lark-request-timestamp");
-    request.nonce = header_value("x-lark-request-nonce");
-    request.signature = header_value("x-lark-signature");
-    request.body = std::move(body);
-    return true;
+    return false;
 }
 
 }  // namespace
@@ -174,6 +116,8 @@ std::string_view HttpEventPort::failure() const { return failure_; }
 
 std::uint16_t HttpEventPort::bound_port() const { return bound_port_; }
 
+bool HttpEventPort::failed() const { return failed_; }
+
 std::optional<FeishuRequest> HttpEventPort::take(std::stop_token stop) {
     while (!stop.stop_requested() && g_process_stop == 0 && listen_fd_ >= 0) {
         pollfd ready{};
@@ -184,6 +128,7 @@ std::optional<FeishuRequest> HttpEventPort::take(std::stop_token stop) {
             if (errno == EINTR) {
                 continue;
             }
+            failed_ = true;
             return std::nullopt;
         }
         if (polled == 0) {
@@ -194,11 +139,15 @@ std::optional<FeishuRequest> HttpEventPort::take(std::stop_token stop) {
             if (errno == EINTR) {
                 continue;
             }
+            failed_ = true;
             return std::nullopt;
         }
         FeishuRequest request;
         if (!read_request(client_fd_, stop, request)) {
-            reply("{}");
+            if (client_fd_ >= 0) {
+                ::close(client_fd_);
+                client_fd_ = -1;
+            }
             continue;
         }
         return request;

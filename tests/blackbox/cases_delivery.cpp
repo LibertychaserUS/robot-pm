@@ -188,15 +188,13 @@ BB_TEST_CASE("delivery.missing_attendee_creates_no_event") {
             {"end", "2026-10-02 11:00"},
             {"title", "接飞书"}}
                                       .dump();
-    expect_ok(fixture.app->handle_event(
-            group_message("ou_owner", "预定 w1 2026-10-02", true, "m1")));
-    expect_ok(fixture.app->handle_event(json{
-            {"kind", "card_callback"},
-            {"action", "确认"},
-            {"open_id", "ou_owner"},
-            {"interaction_id", "m1"},
-            {"mentions_bot", false}}));
+    auto result = fixture.app->handle_event(
+            group_message("ou_owner", "预定 w1 2026-10-02", true, "m1"));
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == robot_pm::ErrorCode::kForbidden);
+    CHECK(fixture.feishu.sent.empty());
     CHECK(fixture.feishu.events.empty());
+    CHECK(fixture.bitable.upsert_calls == 0);
 }
 
 BB_TEST_CASE("delivery.missing_confirm_creates_no_event") {

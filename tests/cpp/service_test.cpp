@@ -1,14 +1,17 @@
 #include "robot_pm/collection_card.hpp"
 #include "robot_pm/service.hpp"
 #include "robot_pm/working_memory.hpp"
+#include "robot_pm/writer_lock.hpp"
 
 #include <doctest/doctest.h>
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <sstream>
 #include <stop_token>
@@ -184,7 +187,18 @@ public:
 
 class FakeProcess final : public robot_pm::ProcessRunner {
 public:
+    std::atomic<int>* run_hits = nullptr;
+    std::atomic<bool>* run_release = nullptr;
+
     std::expected<robot_pm::ProcessResult, robot_pm::Error> run(const robot_pm::ProcessRequest&) override {
+        if (run_hits != nullptr) {
+            run_hits->fetch_add(1);
+        }
+        if (run_release != nullptr) {
+            while (!run_release->load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
         robot_pm::ProcessResult result;
         result.exit_code = 0;
         result.stdout_text = "{}";
@@ -218,6 +232,8 @@ public:
             {"FEISHU_APP_SECRET", "secret-value"},
             {"FEISHU_ENCRYPT_KEY", "encrypt-key"},
             {"FEISHU_VERIFICATION_TOKEN", "verify-token"},
+            {"FEISHU_BITABLE_APP_TOKEN", "bascn"},
+            {"FEISHU_BITABLE_TABLE_ID", "tbl"},
             {"FEISHU_BOT_OPEN_ID", "ou_bot"}};
 }
 
@@ -386,16 +402,14 @@ TEST_CASE("missing setting exits 1 and prints chinese names") {
     FakeProcess process;
     robot_pm::ServeDeps deps{clock, port, feishu, model, bitable, process, nullptr};
     std::ostringstream out;
-    const std::map<std::string, std::string> env{{"FEISHU_APP_ID", "cli_example"},
-                                                 {"FEISHU_APP_SECRET", ""},
-                                                 {"FEISHU_ENCRYPT_KEY", "encrypt-key"},
-                                                 {"FEISHU_VERIFICATION_TOKEN", "verify-token"}};
+    std::map<std::string, std::string> env = full_env();
+    env["FEISHU_APP_SECRET"] = "";
 
     const int code = robot_pm::serve(env, deps, {}, {}, out);
 
     CHECK(code == 1);
-    CHECK(out.str() == "应用密钥\n");
-    CHECK(out.str().find("secret") == std::string::npos);
+    CHECK(out.str() == "应用密钥 FEISHU_APP_SECRET\n");
+    CHECK(out.str().find("secret-value") == std::string::npos);
     CHECK(out.str().find("cli_example") == std::string::npos);
     CHECK(out.str().find("encrypt-key") == std::string::npos);
     CHECK(clock.calls == 0);
@@ -403,12 +417,23 @@ TEST_CASE("missing setting exits 1 and prints chinese names") {
     std::ostringstream all;
     const int empty = robot_pm::serve({}, deps, {}, {}, all);
     CHECK(empty == 1);
-    CHECK(all.str() == "应用编号\n应用密钥\n加密密钥\n校验口令\n");
+    CHECK(all.str() ==
+          "应用编号 FEISHU_APP_ID\n应用密钥 FEISHU_APP_SECRET\n加密密钥 FEISHU_ENCRYPT_KEY\n校验口令 "
+          "FEISHU_VERIFICATION_TOKEN\n多维表 FEISHU_BITABLE_APP_TOKEN\n数据表 FEISHU_BITABLE_TABLE_ID\n机器人 "
+          "FEISHU_BOT_OPEN_ID\n");
+
+    std::ostringstream bot;
+    std::map<std::string, std::string> no_bot = full_env();
+    no_bot.erase("FEISHU_BOT_OPEN_ID");
+    CHECK(robot_pm::serve(no_bot, deps, {}, {}, bot) == 1);
+    CHECK(bot.str().find("FEISHU_BOT_OPEN_ID") != std::string::npos);
+    CHECK(bot.str().find("ou_bot") == std::string::npos);
 }
 
 TEST_CASE("mention reaches the library and a silent group message does not") {
     Running running;
-    running.bitable.role_rows = json::array();
+    running.bitable.role_rows = json::array(
+            {json{{"群id", "oc_group"}, {"人员", json::array({json{{"id", "ou_owner"}}})}, {"职责", "接口"}}});
     REQUIRE(robot_pm::enter_group_form(running.root, "oc_group", "普通群").has_value());
     running.start();
     REQUIRE(running.port.wait_until(1));
@@ -579,6 +604,99 @@ TEST_CASE("a group file is not imported") {
     REQUIRE(running.port.wait_until(3));
     CHECK(running.observer.calls == 1);
     CHECK(fs::is_empty(running.root / "inbox"));
+    running.stop();
+}
+
+class FailedPort final : public robot_pm::EventPort {
+public:
+    std::optional<robot_pm::FeishuRequest> take(std::stop_token) override { return std::nullopt; }
+    void reply(std::string_view) override {}
+    [[nodiscard]] bool failed() const override { return true; }
+};
+
+TEST_CASE("accept failure exits nonzero") {
+    FailedPort port;
+    FakeClock clock;
+    FakeFeishu feishu;
+    FakeModel model;
+    FakeBitable bitable;
+    FakeProcess process;
+    robot_pm::ServeDeps deps{clock, port, feishu, model, bitable, process, nullptr};
+    const fs::path root = fs::temp_directory_path() / "robot-pm-accept-fail";
+    fs::create_directories(root);
+    std::ostringstream out;
+    CHECK(robot_pm::serve(full_env(), deps, robot_pm::ServicePaths{root, root}, {}, out) == 1);
+    fs::remove_all(root);
+}
+
+TEST_CASE("a second writer cannot lock the same tree") {
+    const fs::path root = fs::temp_directory_path() / "robot-pm-lock";
+    fs::remove_all(root);
+    fs::create_directories(root);
+    {
+        robot_pm::WriterLock first = robot_pm::WriterLock::acquire(root);
+        robot_pm::WriterLock second = robot_pm::WriterLock::acquire(root);
+        CHECK(static_cast<bool>(first));
+        CHECK_FALSE(static_cast<bool>(second));
+    }
+    fs::remove_all(root);
+}
+
+TEST_CASE("empty roles and a lone pm do not get a card or a write") {
+    Running running;
+    REQUIRE(robot_pm::enter_group_form(running.root, "oc_group", "普通群").has_value());
+    running.bitable.role_rows = json::array();
+    running.start();
+    REQUIRE(running.port.wait_until(1));
+    running.port.push(signed_request(message_body("group", true, "text")));
+    REQUIRE(running.port.wait_until(2));
+    CHECK(running.feishu.sent.empty());
+    CHECK(running.bitable.records[0].at("状态") == "todo");
+
+    running.bitable.role_rows = json::array(
+            {json{{"群id", "oc_group"}, {"人员", json::array({json{{"id", "ou_pm"}}})}, {"职责", "pm"}}});
+    json pm_message = message_body("group", true, "text");
+    pm_message["event"]["sender"]["sender_id"]["open_id"] = "ou_pm";
+    running.port.push(signed_request(pm_message));
+    REQUIRE(running.port.wait_until(3));
+    CHECK(running.feishu.sent.empty());
+    CHECK(running.bitable.records[0].at("状态") == "todo");
+    running.stop();
+}
+
+TEST_CASE("missing chat mode uses the recorded form") {
+    json message = meeting_message("group", "chat");
+    message.erase("chat_mode");
+    const robot_pm::CardDispatch normal = robot_pm::present_feishu_cards(message, "普通群");
+    CHECK(normal.notice.empty());
+    REQUIRE_FALSE(normal.requests.empty());
+    CHECK(normal.requests[0].at("url") == "https://open.feishu.cn/open-apis/ephemeral/v1/send");
+    const robot_pm::CardDispatch topic = robot_pm::present_feishu_cards(message, "话题群");
+    CHECK(topic.notice.empty());
+    REQUIRE_FALSE(topic.requests.empty());
+    CHECK(topic.requests[0].at("url") == "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id");
+    const robot_pm::CardDispatch missing = robot_pm::present_feishu_cards(message, "");
+    CHECK(missing.requests.empty());
+    CHECK(missing.notice == "形式没记");
+}
+
+TEST_CASE("serve imports one inbox file and does not tell the group") {
+    Running running;
+    std::atomic<int> hits{0};
+    std::atomic<bool> release{false};
+    running.process.run_hits = &hits;
+    running.process.run_release = &release;
+    std::ofstream(running.root / "inbox" / "a.json") << "{\"schema_version\":1}\n";
+    std::ofstream(running.root / "inbox" / "b.json") << "{\"schema_version\":1}\n";
+    running.start();
+    for (int i = 0; i < 2000 && hits.load() < 1; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(hits.load() == 1);
+    CHECK(fs::exists(running.root / "inbox" / "a.json"));
+    CHECK(fs::exists(running.root / "inbox" / "b.json"));
+    CHECK(running.feishu.sent.empty());
+    release.store(true);
     running.stop();
 }
 
