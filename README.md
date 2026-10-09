@@ -17,11 +17,13 @@
 | 加密密钥 | `FEISHU_ENCRYPT_KEY` |
 | 校验口令 | `FEISHU_VERIFICATION_TOKEN` |
 
+`FEISHU_BOT_OPEN_ID` 不设就认不出群里的点名。
+
 部署探针还要 `FEISHU_BITABLE_APP_TOKEN` 和 `FEISHU_BITABLE_TABLE_ID` 有值。它只检查在不在。缺了就在标准错误里写出变量名。
 
-可以不设的有 `FEISHU_BASE_URL`（默认 `https://open.feishu.cn`）、`FEISHU_BOT_OPEN_ID`、`FEISHU_GROUP_ID`、`FEISHU_CALENDAR_ID`、`ROBOT_PM_TIMEZONE`（默认 `Asia/Shanghai`）、`ROBOT_PM_PORT`（默认 `8080`）。群里的 @ 靠 `FEISHU_BOT_OPEN_ID` 来认。
+可以不设的有 `FEISHU_BASE_URL`（默认 `https://open.feishu.cn`）、`FEISHU_GROUP_ID`、`FEISHU_CALENDAR_ID`、`ROBOT_PM_TIMEZONE`（默认 `Asia/Shanghai`）、`ROBOT_PM_PORT`（默认 `8080`）。
 
-每个群的真实形式是普通群或话题群。
+每个群的形式要事先记下。现在还没有写入这一步。没记下就不会发决定。形式是普通群或话题群。
 
 数据目录用 `ROBOT_PM_DATA_ROOT`。不设就是当前目录下的 `var/robot_pm`。探针和程序要用同一个目录。
 
@@ -77,7 +79,7 @@ export ROBOT_PM_DATA_ROOT=var/robot_pm
 
 端口写错会打印「端口不对」并退出。端口被占用会打印「端口被占」并退出。默认端口是 8080。
 
-要它一直留着，用用户态的守护。守护是父进程，等一个子进程。子进程意外退出，守护再把它拉起来。你要求停下，守护就停住，不再拉起。
+跑起 `robot-pm`，进程就一直留着。这次改动没有带上用户态守护。
 
 ## 发出去的卡片
 
