@@ -291,7 +291,13 @@ REQUIRED_ENV = (
     "FEISHU_VERIFICATION_TOKEN",
     "FEISHU_BITABLE_APP_TOKEN",
     "FEISHU_BITABLE_TABLE_ID",
+    "FEISHU_BOT_OPEN_ID",
 )
+
+RECORDED_FORMS = {
+    "普通群": "group",
+    "话题群": "topic",
+}
 
 PROBE_NAME = ".robot-pm-space-probe"
 LOCK_NAME = ".writer.lock"
@@ -867,6 +873,43 @@ def _errno_message(rc, data_root, minimum):
     return kind, f"空间不够：按 {minimum} 字节写入探针失败，没有创建目录"
 
 
+def record_group_form(data_root, group_id, form, actual=None):
+    """Write one group form row. Forms stay 普通群 or 话题群."""
+    group_id = str(group_id or "").strip()
+    form = str(form or "").strip()
+    if not group_id or "/" in group_id or "\\" in group_id or group_id in (".", ".."):
+        _fail("form", "形式不符")
+    if form not in RECORDED_FORMS:
+        _fail("form", "形式不符")
+    if actual is not None and str(actual).strip() != RECORDED_FORMS[form]:
+        _fail("form", "形式不符")
+    path = os.path.join(os.path.abspath(data_root), "group-forms.jsonl")
+    rows = []
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                text = line.strip()
+                if not text:
+                    continue
+                try:
+                    parsed = __import__("json").loads(text)
+                except ValueError:
+                    rows.append(text)
+                    continue
+                if isinstance(parsed, dict) and parsed.get("群标识") == group_id:
+                    continue
+                rows.append(text)
+    import json
+
+    rows.append(json.dumps({"群标识": group_id, "形式": form}, ensure_ascii=False, separators=(",", ":")))
+    temporary = path + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(rows) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
 def prepare(data_root, environ=None, minimum_bytes=0):
     """Probe, then create the persistence tree. The returned lock stays held."""
     if environ is None:
@@ -1009,13 +1052,21 @@ def main(argv=None):
         action="store_true",
         help="准备好后先占着，不让别人同时准备",
     )
+    parser.add_argument("--群", dest="group_id", default=None, metavar="标识", help="记下这个群")
+    parser.add_argument("--形式", dest="form", default=None, metavar="形式", help="普通群或话题群")
+    parser.add_argument("--实际", dest="actual", default=None, metavar="形式", help="录入时核对的实际形式")
     args = parser.parse_args(argv)
+    if (args.group_id is None) != (args.form is None):
+        print("形式不符", file=sys.stderr)
+        return 1
     if args.data_root:
         data_root = args.data_root
     else:
         data_root = os.environ.get("ROBOT_PM_DATA_ROOT", "").strip() or "var/robot_pm"
     try:
         lock = prepare(data_root)
+        if args.group_id is not None:
+            record_group_form(data_root, args.group_id, args.form, args.actual)
     except DeployError as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -4,7 +4,7 @@ target_link_libraries(robot_pm_http PUBLIC robot_pm_core)
 robot_pm_set_warnings(robot_pm_http)
 robot_pm_enable_sanitizers(robot_pm_http)
 
-add_executable(robot-pm main.cpp)
+add_executable(robot-pm main.cpp live.cpp)
 target_link_libraries(robot-pm PRIVATE robot_pm_http)
 robot_pm_set_warnings(robot-pm)
 robot_pm_enable_sanitizers(robot-pm)

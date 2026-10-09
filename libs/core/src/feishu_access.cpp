@@ -1,110 +1,13 @@
 #include "robot_pm/feishu_access.hpp"
 
+#include "robot_pm/crypto.hpp"
+
 #include <array>
-#include <cstdint>
 #include <map>
 #include <vector>
 
 namespace robot_pm {
 namespace {
-
-constexpr std::array<std::uint32_t, 64> kSha256Round{
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
-
-[[nodiscard]] std::uint32_t rotate_right(std::uint32_t value, std::uint32_t bits) {
-    return (value >> bits) | (value << (32U - bits));
-}
-
-void sha256_block(std::array<std::uint32_t, 8>& state, const std::uint8_t block[64]) {
-    std::array<std::uint32_t, 64> words{};
-    for (std::size_t index = 0; index < 16; ++index) {
-        words[index] = (static_cast<std::uint32_t>(block[index * 4]) << 24U) |
-                       (static_cast<std::uint32_t>(block[index * 4 + 1]) << 16U) |
-                       (static_cast<std::uint32_t>(block[index * 4 + 2]) << 8U) |
-                       static_cast<std::uint32_t>(block[index * 4 + 3]);
-    }
-    for (std::size_t index = 16; index < 64; ++index) {
-        const std::uint32_t small = rotate_right(words[index - 15], 7) ^ rotate_right(words[index - 15], 18) ^
-                                    (words[index - 15] >> 3U);
-        const std::uint32_t large = rotate_right(words[index - 2], 17) ^ rotate_right(words[index - 2], 19) ^
-                                    (words[index - 2] >> 10U);
-        words[index] = words[index - 16] + small + words[index - 7] + large;
-    }
-    std::uint32_t a = state[0];
-    std::uint32_t b = state[1];
-    std::uint32_t c = state[2];
-    std::uint32_t d = state[3];
-    std::uint32_t e = state[4];
-    std::uint32_t f = state[5];
-    std::uint32_t g = state[6];
-    std::uint32_t h = state[7];
-    for (std::size_t index = 0; index < 64; ++index) {
-        const std::uint32_t s1 = rotate_right(e, 6) ^ rotate_right(e, 11) ^ rotate_right(e, 25);
-        const std::uint32_t choose = (e & f) ^ ((~e) & g);
-        const std::uint32_t temp1 = h + s1 + choose + kSha256Round[index] + words[index];
-        const std::uint32_t s0 = rotate_right(a, 2) ^ rotate_right(a, 13) ^ rotate_right(a, 22);
-        const std::uint32_t majority = (a & b) ^ (a & c) ^ (b & c);
-        const std::uint32_t temp2 = s0 + majority;
-        h = g;
-        g = f;
-        f = e;
-        e = d + temp1;
-        d = c;
-        c = b;
-        b = a;
-        a = temp1 + temp2;
-    }
-    state[0] += a;
-    state[1] += b;
-    state[2] += c;
-    state[3] += d;
-    state[4] += e;
-    state[5] += f;
-    state[6] += g;
-    state[7] += h;
-}
-
-[[nodiscard]] std::array<std::uint8_t, 32> sha256_bytes(std::string_view input) {
-    std::array<std::uint32_t, 8> state{0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                                       0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
-    std::vector<std::uint8_t> padded(input.begin(), input.end());
-    const std::uint64_t bit_length = static_cast<std::uint64_t>(input.size()) * 8U;
-    padded.push_back(0x80);
-    while ((padded.size() % 64) != 56) {
-        padded.push_back(0);
-    }
-    for (int shift = 56; shift >= 0; shift -= 8) {
-        padded.push_back(static_cast<std::uint8_t>((bit_length >> static_cast<unsigned>(shift)) & 0xffU));
-    }
-    for (std::size_t offset = 0; offset < padded.size(); offset += 64) {
-        sha256_block(state, padded.data() + offset);
-    }
-    std::array<std::uint8_t, 32> digest{};
-    for (std::size_t index = 0; index < state.size(); ++index) {
-        digest[index * 4] = static_cast<std::uint8_t>((state[index] >> 24U) & 0xffU);
-        digest[index * 4 + 1] = static_cast<std::uint8_t>((state[index] >> 16U) & 0xffU);
-        digest[index * 4 + 2] = static_cast<std::uint8_t>((state[index] >> 8U) & 0xffU);
-        digest[index * 4 + 3] = static_cast<std::uint8_t>(state[index] & 0xffU);
-    }
-    return digest;
-}
-
-[[nodiscard]] std::string hex_lower(const std::array<std::uint8_t, 32>& digest) {
-    static constexpr char kDigits[] = "0123456789abcdef";
-    std::string text(digest.size() * 2, '0');
-    for (std::size_t index = 0; index < digest.size(); ++index) {
-        text[index * 2] = kDigits[digest[index] >> 4U];
-        text[index * 2 + 1] = kDigits[digest[index] & 0x0fU];
-    }
-    return text;
-}
 
 [[nodiscard]] bool same_text(std::string_view left, std::string_view right) {
     if (left.size() != right.size()) {
@@ -196,7 +99,21 @@ std::string feishu_event_signature(std::string_view timestamp,
     material.append(nonce);
     material.append(encrypt_key);
     material.append(body);
-    return hex_lower(sha256_bytes(material));
+    return sha256_hex(material);
+}
+
+[[nodiscard]] std::string trim_setting(std::string_view text) {
+    std::size_t begin = 0;
+    while (begin < text.size() &&
+           (text[begin] == ' ' || text[begin] == '\t' || text[begin] == '\n' || text[begin] == '\r')) {
+        ++begin;
+    }
+    std::size_t end = text.size();
+    while (end > begin && (text[end - 1] == ' ' || text[end - 1] == '\t' || text[end - 1] == '\n' ||
+                           text[end - 1] == '\r')) {
+        --end;
+    }
+    return std::string(text.substr(begin, end - begin));
 }
 
 std::expected<FeishuAccessConfig, Error> feishu_access_from_environ(
@@ -206,7 +123,7 @@ std::expected<FeishuAccessConfig, Error> feishu_access_from_environ(
     std::string missing;
     for (const char* name : kRequired) {
         const auto found = env.find(name);
-        if (found == env.end() || found->second.empty()) {
+        if (found == env.end() || trim_setting(found->second).empty()) {
             if (!missing.empty()) {
                 missing.append(", ");
             }
@@ -217,13 +134,13 @@ std::expected<FeishuAccessConfig, Error> feishu_access_from_environ(
         return std::unexpected(Error{ErrorCode::kConfigMissing, "缺少环境变量：" + missing});
     }
     FeishuAccessConfig config;
-    config.app_id = env.at("FEISHU_APP_ID");
-    config.app_secret = env.at("FEISHU_APP_SECRET");
-    config.encrypt_key = env.at("FEISHU_ENCRYPT_KEY");
-    config.verification_token = env.at("FEISHU_VERIFICATION_TOKEN");
+    config.app_id = trim_setting(env.at("FEISHU_APP_ID"));
+    config.app_secret = trim_setting(env.at("FEISHU_APP_SECRET"));
+    config.encrypt_key = trim_setting(env.at("FEISHU_ENCRYPT_KEY"));
+    config.verification_token = trim_setting(env.at("FEISHU_VERIFICATION_TOKEN"));
     const auto base = env.find("FEISHU_BASE_URL");
-    if (base != env.end() && !base->second.empty()) {
-        config.base_url = base->second;
+    if (base != env.end() && !trim_setting(base->second).empty()) {
+        config.base_url = trim_setting(base->second);
         while (!config.base_url.empty() && config.base_url.back() == '/') {
             config.base_url.pop_back();
         }
@@ -242,12 +159,21 @@ std::expected<AccessDecision, Error> admit_feishu_event(const FeishuAccessConfig
     if (!same_text(lower_copy(request.signature), expected)) {
         return std::unexpected(Error{ErrorCode::kForbidden, "事件验签失败"});
     }
-    const nlohmann::json body = nlohmann::json::parse(request.body, nullptr, false);
+    nlohmann::json body = nlohmann::json::parse(request.body, nullptr, false);
     if (body.is_discarded() || !body.is_object()) {
         return std::unexpected(Error{ErrorCode::kEditRejected, "事件不是 JSON"});
     }
-    if (body.contains("encrypt") && !body.contains("header") && !body.contains("type")) {
-        return std::unexpected(Error{ErrorCode::kEditRejected, "加密事件验签通过后仍不直接处理"});
+    if (body.contains("encrypt") && body.at("encrypt").is_string() && !body.contains("header") &&
+        !body.contains("type")) {
+        const std::expected<std::string, Error> plain =
+                decrypt_feishu_payload(config.encrypt_key, body.at("encrypt").get_ref<const std::string&>());
+        if (!plain) {
+            return std::unexpected(plain.error());
+        }
+        body = nlohmann::json::parse(*plain, nullptr, false);
+        if (body.is_discarded() || !body.is_object()) {
+            return std::unexpected(Error{ErrorCode::kEditRejected, "事件不是 JSON"});
+        }
     }
     if (!same_text(event_token(body), config.verification_token)) {
         return std::unexpected(Error{ErrorCode::kForbidden, "事件验签失败"});

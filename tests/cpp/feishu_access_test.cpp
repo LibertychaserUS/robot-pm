@@ -1,5 +1,8 @@
 #include "robot_pm/feishu_access.hpp"
 
+#include "robot_pm/crypto.hpp"
+
+#include <algorithm>
 #include <doctest/doctest.h>
 
 #include <map>
@@ -141,6 +144,44 @@ TEST_CASE("feishu.private_card_and_join_are_handled") {
     REQUIRE(added_decision.has_value());
     CHECK(added_decision->onboarding);
     CHECK(added_decision->route == "bot_added");
+}
+
+TEST_CASE("feishu.encrypted_callback_is_decrypted_after_the_signature") {
+    const std::string plain = nlohmann::json{{"type", "url_verification"},
+                                             {"token", "verify-token"},
+                                             {"challenge", "challenge-ok"}}
+                                      .dump();
+    const std::string cipher = robot_pm::encrypt_feishu_payload("encrypt-key", plain);
+    const std::string body = nlohmann::json{{"encrypt", cipher}}.dump();
+    robot_pm::FeishuRequest request;
+    request.timestamp = "1710000000";
+    request.nonce = "nonce-1";
+    request.body = body;
+    request.signature =
+            robot_pm::feishu_event_signature(request.timestamp, request.nonce, "encrypt-key", request.body);
+
+    const auto decision = robot_pm::admit_feishu_event(test_config(), "ou_bot", request);
+
+    REQUIRE(decision.has_value());
+    CHECK(decision->route == "url_verification");
+    CHECK(decision->challenge == "challenge-ok");
+
+    request.signature = "0000000000000000000000000000000000000000000000000000000000000000";
+    const auto rejected = robot_pm::admit_feishu_event(test_config(), "ou_bot", request);
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().code == robot_pm::ErrorCode::kForbidden);
+}
+
+TEST_CASE("feishu.aes256_matches_the_published_block") {
+    const std::uint8_t key[32] = {0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 0x2b, 0x73, 0xae,
+                                  0xf0, 0x85, 0x7d, 0x77, 0x81, 0x1f, 0x35, 0x2c, 0x07, 0x3b, 0x61,
+                                  0x08, 0xd7, 0x2d, 0x98, 0x10, 0xa3, 0x09, 0x14, 0xdf, 0xf4};
+    const std::uint8_t block[16] = {0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96,
+                                    0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a};
+    const std::uint8_t expect[16] = {0xf3, 0xee, 0xd1, 0xbd, 0xb5, 0xd2, 0xa0, 0x3c,
+                                     0x06, 0x4b, 0x5a, 0x7e, 0x3d, 0xb1, 0x81, 0xf8};
+    const auto cipher = robot_pm::aes256_encrypt_block(key, block);
+    CHECK(std::equal(cipher.begin(), cipher.end(), expect));
 }
 
 TEST_CASE("feishu.send_uses_tenant_access_token") {

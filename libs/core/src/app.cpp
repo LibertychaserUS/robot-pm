@@ -797,8 +797,10 @@ void remove_empty_parent(const fs::path& person) {
 }
 
 [[nodiscard]] bool can_edit(const std::vector<std::string>& roles, std::string_view item_role) {
-    return std::find(roles.begin(), roles.end(), std::string(item_role)) != roles.end() ||
-           std::find(roles.begin(), roles.end(), "pm") != roles.end();
+    if (item_role.empty()) {
+        return false;
+    }
+    return std::find(roles.begin(), roles.end(), std::string(item_role)) != roles.end();
 }
 
 // 群卡片只认这件事的职责。空职责或对不上的人不能点，也不把全群算进去。
@@ -1130,7 +1132,8 @@ void stamp_card(json& payload, std::string_view message_id, const json& event, j
     if (item == nullptr) {
         return std::unexpected(fail(ErrorCode::kEditRejected, "没有这件工作"));
     }
-    if (!role_rows.empty() && !can_edit(roles_of(role_rows, open_id), item->value("职责", ""))) {
+    if (!role_rows.is_array() || role_rows.empty() ||
+        !can_edit(roles_of(role_rows, open_id), item->value("职责", ""))) {
         return std::unexpected(fail(ErrorCode::kForbidden, "职责不符"));
     }
     const bool has_status = parsed.contains("status");
@@ -1243,7 +1246,8 @@ void stamp_card(json& payload, std::string_view message_id, const json& event, j
     if (item == nullptr) {
         return std::unexpected(fail(ErrorCode::kEditRejected, "没有这件工作"));
     }
-    if (!role_rows.empty() && !can_edit(roles_of(role_rows, open_id), item->value("职责", ""))) {
+    if (!role_rows.is_array() || role_rows.empty() ||
+        !can_edit(roles_of(role_rows, open_id), item->value("职责", ""))) {
         return std::unexpected(fail(ErrorCode::kForbidden, "职责不符"));
     }
     json plan = {{"kind", "reserve"},
@@ -1459,6 +1463,14 @@ void stamp_card(json& payload, std::string_view message_id, const json& event, j
         if (row_drifted(item, plan.context)) {
             return cancel_plan(session, plan, false);
         }
+        const std::expected<json, Error> roles = list_table(session, kRoleTable);
+        if (!roles) {
+            return std::unexpected(roles.error());
+        }
+        if (!roles->is_array() || roles->empty() ||
+            !can_edit(roles_of(*roles, plan.owner), item == nullptr ? "" : item->value("职责", ""))) {
+            return std::unexpected(fail(ErrorCode::kForbidden, "职责不符"));
+        }
         json row = {{"业务id", plan.context.value("item_id", "")}};
         if (plan.context.contains("status")) {
             row["状态"] = plan.context.at("status");
@@ -1490,7 +1502,11 @@ void stamp_card(json& payload, std::string_view message_id, const json& event, j
             return std::unexpected(records ? roles.error() : records.error());
         }
         const json* item = find_record(*records, plan.context.value("item_id", ""));
-        const json attendees = attendees_for(*roles, item == nullptr ? "" : item->value("职责", ""));
+        const std::string item_role = item == nullptr ? "" : item->value("职责", "");
+        if (!roles->is_array() || roles->empty() || !can_edit(roles_of(*roles, plan.owner), item_role)) {
+            return std::unexpected(fail(ErrorCode::kForbidden, "职责不符"));
+        }
+        const json attendees = attendees_for(*roles, item_role);
         if (attendees.empty()) {
             return json::object();
         }
@@ -1911,7 +1927,20 @@ void stamp_card(json& payload, std::string_view message_id, const json& event, j
     if (files.empty()) {
         return json::object();
     }
-    const fs::path& file = files.front();
+    const fs::path file = files.front();
+    struct RetireFile {
+        fs::path source;
+        fs::path handled;
+        bool armed{false};
+        ~RetireFile() {
+            if (!armed) {
+                return;
+            }
+            std::error_code error;
+            fs::create_directories(handled, error);
+            fs::rename(source, handled / source.filename(), error);
+        }
+    } retire{file, session.config.data_root / "handled", true};
     const std::string ext = lower_copy(file.extension().string());
     const std::string bytes = read_text(file);
     if (ext == ".pdf") {
