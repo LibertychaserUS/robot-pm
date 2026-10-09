@@ -16,7 +16,8 @@ add_library(robot_pm_core
     src/decide.cpp
     src/act.cpp
     src/arrange.cpp
-    src/service.cpp)
+    src/service.cpp
+    src/child_boot.cpp)
 target_include_directories(robot_pm_core PUBLIC include)
 target_link_libraries(robot_pm_core PUBLIC nlohmann_json::nlohmann_json)
 robot_pm_set_warnings(robot_pm_core)
