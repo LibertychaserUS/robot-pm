@@ -8,7 +8,7 @@
 
 凭证放在运行环境里。仓库里的 [`.env.example`](.env.example) 只有占位符。不要提交真实的应用密钥、多维表格 token、群标识或日历标识。
 
-飞书这几项要有值。程序缺了会打出左边的名字。
+飞书这几项要有值。程序和部署探针都要。程序缺了会打出左边的名字。
 
 | 名字 | 变量 |
 | --- | --- |
@@ -16,14 +16,15 @@
 | 应用密钥 | `FEISHU_APP_SECRET` |
 | 加密密钥 | `FEISHU_ENCRYPT_KEY` |
 | 校验口令 | `FEISHU_VERIFICATION_TOKEN` |
+| 多维表 | `FEISHU_BITABLE_APP_TOKEN` |
+| 数据表 | `FEISHU_BITABLE_TABLE_ID` |
+| 机器人 | `FEISHU_BOT_OPEN_ID` |
 
-`FEISHU_BOT_OPEN_ID` 不设就认不出群里的点名。
-
-部署探针还要 `FEISHU_BITABLE_APP_TOKEN` 和 `FEISHU_BITABLE_TABLE_ID` 有值。它只检查在不在。缺了就在标准错误里写出变量名。
+探针只检查在不在。缺了就在标准错误里写出变量名。
 
 可以不设的有 `FEISHU_BASE_URL`（默认 `https://open.feishu.cn`）、`FEISHU_GROUP_ID`、`FEISHU_CALENDAR_ID`、`ROBOT_PM_TIMEZONE`（默认 `Asia/Shanghai`）、`ROBOT_PM_PORT`（默认 `8080`）。
 
-每个群的形式要事先记下。现在还没有写入这一步。没记下就不会发决定。形式是普通群或话题群。
+每个群的形式要事先记下。没记下就不会发决定。形式是普通群或话题群。用探针的 `--群` 和 `--形式` 记下，见 [docs/deploy.md](docs/deploy.md)。
 
 数据目录用 `ROBOT_PM_DATA_ROOT`。不设就是当前目录下的 `var/robot_pm`。探针和程序要用同一个目录。
 
@@ -43,7 +44,7 @@ python3 -m venv .venv
 
 它检查这些。任何一步失败，目录保持原样。原因写在标准错误上，退出码是 1。环境变量的值不会打印。
 
-1. 这六项都有非空的值：`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_ENCRYPT_KEY`、`FEISHU_VERIFICATION_TOKEN`、`FEISHU_BITABLE_APP_TOKEN`、`FEISHU_BITABLE_TABLE_ID`。
+1. 这七项都有非空的值：`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_ENCRYPT_KEY`、`FEISHU_VERIFICATION_TOKEN`、`FEISHU_BITABLE_APP_TOKEN`、`FEISHU_BITABLE_TABLE_ID`、`FEISHU_BOT_OPEN_ID`。
 2. 时钟能换成北京时间（`Asia/Shanghai`，东八区），年份落在 2026 到 2100 之间。
 3. 当前解释器和 `python3` 都是 3.11 或更高，`cmake` 至少 3.28，C++ 编译器是 GCC 14 或 Clang 18。
 4. 可用空间至少 **50466816 字节**。不够就停，不会先建目录。
@@ -52,7 +53,7 @@ python3 -m venv .venv
 
 成功时打印目录路径，以及「至少需要 50466816 字节」。
 
-`--占着` 会在目录就绪后一直占着这把锁，直到标准输入结束。用来确认第二个进程不能同时准备这棵树。它仍然不启动机器人。平常跑完，锁会放开。`robot-pm` 处理事件时不拿这把锁。
+`--占着` 会在目录就绪后一直占着这把锁，直到标准输入结束。用来确认第二个进程不能同时准备这棵树。它仍然不启动机器人。平常跑完，锁会放开。`robot-pm` 跑起来以后也占着这把锁，直到进程结束。
 
 空间怎么分成三笔，见 [docs/deploy.md](docs/deploy.md)。
 
@@ -75,11 +76,17 @@ export ROBOT_PM_DATA_ROOT=var/robot_pm
 
 进程听着端口，一直处理飞书事件，直到收到 SIGINT 或 SIGTERM。它不会只打印 `robot-pm` 就退出。
 
-缺了应用编号、应用密钥、加密密钥或校验口令，它把缺的名字一行一个打出来，然后退出，退出码是 1。已经有值的项不会打出来。
+上面七项缺了哪项，它把缺的名字和变量一行一个打出来，然后退出，退出码是 1。已经有值的项不会打出来。
 
 端口写错会打印「端口不对」并退出。端口被占用会打印「端口被占」并退出。默认端口是 8080。
 
-跑起 `robot-pm`，进程就一直留着。这次改动没有带上用户态守护。
+跑起 `robot-pm`，进程就一直留着。要它崩了自己再起来，用用户态守护拉起它：
+
+```bash
+./build/apps/supervise/robot-pm-supervise --程序 ./build/apps/robot-pm/robot-pm
+```
+
+守护同时只拉起一个。崩溃或非零退出才再拉起，先等至少一秒，连续马上死掉就加倍等。收到 SIGINT 或 SIGTERM 就一起停下。
 
 ## 发出去的卡片
 
